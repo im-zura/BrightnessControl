@@ -39,9 +39,12 @@ public partial class FlyoutWindow : Window
         Action onSettingsChanged)
     {
         InitializeComponent();
-        // Opaque window (renders reliably) + DWM-rounded corners for the Start-menu look.
+        // Real Windows acrylic backdrop (transient-window flavor) for the Start-menu look:
+        // dark title bar + rounded corners + the DWM acrylic surface. The window/client area is made
+        // transparent in OnSourceInitialized so the backdrop shows through the tinted RootBorder.
         DwmInterop.UseDarkTitleBar(this);
         DwmInterop.SetRoundedCorners(this);
+        DwmInterop.SetBackdrop(this, BackdropType.Acrylic);
 
         _state = state;
         _monitorService = monitorService;
@@ -49,24 +52,39 @@ public partial class FlyoutWindow : Window
         _onSettingsChanged = onSettingsChanged;
 
         SiteText.Text = AppInfo.Site;
-        StartupToggle.IsChecked = _state.Config.StartWithWindows;
 
         _profileManager.ActiveProfileChanged += OnActiveProfileChanged;
-        Closed += (_, _) => _profileManager.ActiveProfileChanged -= OnActiveProfileChanged;
+        _monitorService.BrightnessChanged += OnBrightnessChanged;
+        Closed += (_, _) =>
+        {
+            _profileManager.ActiveProfileChanged -= OnActiveProfileChanged;
+            _monitorService.BrightnessChanged -= OnBrightnessChanged;
+        };
         Loaded += (_, _) => { PositionNearTray(); AnimateIn(); ForceForeground(); };
 
         BuildMonitors();
         BuildGameTiles();
     }
 
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        // Punch the client area transparent so the DWM acrylic backdrop is what shows behind the
+        // tinted RootBorder (without this, WPF paints an opaque surface over the backdrop).
+        if (PresentationSource.FromVisual(this) is HwndSource { CompositionTarget: { } target })
+            target.BackgroundColor = Colors.Transparent;
+    }
+
     // ---- Monitors ----------------------------------------------------------
 
     private readonly Dictionary<string, MonitorBrightnessSlider> _monitorSliders = new();
+    private MonitorBrightnessSlider? _masterSlider;
 
     private void BuildMonitors()
     {
         MonitorsPanel.Children.Clear();
         _monitorSliders.Clear();
+        _masterSlider = null;
         var monitors = _monitorService.Monitors.Where(m => m.IsResponsive).ToList();
         NoMonitorsText.Visibility = monitors.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -85,6 +103,7 @@ public partial class FlyoutWindow : Window
             MonitorName = "All monitors",
             Value = (int)Math.Round(monitors.Average(m => m.CurrentPercent)),
         };
+        _masterSlider = master;
         master.BrightnessCommitted += async (_, percent) =>
         {
             foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
@@ -278,20 +297,16 @@ public partial class FlyoutWindow : Window
         });
         grid.Children.Add(stack);
 
-        if (profile.MonitorBrightness.Count > 0)
+        grid.Children.Add(new Border
         {
-            var avg = (int)Math.Round(profile.MonitorBrightness.Values.Average());
-            grid.Children.Add(new Border
-            {
-                Background = Brush("AccentBrush"),
-                CornerRadius = new CornerRadius(4),
-                Padding = new Thickness(4, 1, 4, 1),
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(0, 2, 2, 0),
-                Child = new TextBlock { Text = $"{avg}%", FontSize = 9, Foreground = Brushes.White },
-            });
-        }
+            Background = Brush("AccentBrush"),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(4, 1, 4, 1),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 2, 2, 0),
+            Child = new TextBlock { Text = $"{profile.EffectiveGameBrightness}%", FontSize = 9, Foreground = Brushes.White },
+        });
 
         var button = new Button
         {
@@ -423,18 +438,25 @@ public partial class FlyoutWindow : Window
         Dispatcher.Invoke(BuildGameTiles);
     }
 
-    // ---- Bottom bar --------------------------------------------------------
-
-    private void StartupToggle_Changed(object sender, RoutedEventArgs e)
+    /// <summary>Mirror an external brightness change (hotkey, tray scroll) onto the open sliders.
+    /// Setting Value runs under the slider's suppress guard, so it won't re-commit a DDC write.</summary>
+    private void OnBrightnessChanged(string monitorId, int percent)
     {
-        var enabled = StartupToggle.IsChecked == true;
-        if (enabled == _state.Config.StartWithWindows)
-            return;
+        Dispatcher.Invoke(() =>
+        {
+            if (_monitorSliders.TryGetValue(monitorId, out var slider))
+                slider.Value = percent;
 
-        _state.Config.StartWithWindows = enabled;
-        StartupManager.SetEnabled(enabled);
-        ConfigStore.Save(_state.Config);
+            if (_masterSlider != null)
+            {
+                var responsive = _monitorService.Monitors.Where(m => m.IsResponsive).ToList();
+                if (responsive.Count > 0)
+                    _masterSlider.Value = (int)Math.Round(responsive.Average(m => m.CurrentPercent));
+            }
+        });
     }
+
+    // ---- Bottom bar --------------------------------------------------------
 
     private void SiteLink_Click(object sender, RoutedEventArgs e)
     {
@@ -442,7 +464,8 @@ public partial class FlyoutWindow : Window
         catch { /* no browser / blocked: ignore */ }
     }
 
-    private void ExitButton_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
+    private void ExitButton_Click(object sender, RoutedEventArgs e) =>
+        ((App)Application.Current).RequestShutdown();
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {

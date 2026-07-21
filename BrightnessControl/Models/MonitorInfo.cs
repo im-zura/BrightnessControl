@@ -7,6 +7,9 @@ public sealed class MonitorInfo
 {
     public required string Id { get; init; }
     public required string FriendlyName { get; init; }
+
+    /// <summary>GDI device name (e.g. "\\.\DISPLAY1") — used to match a game window's monitor.</summary>
+    public string DeviceName { get; init; } = "";
     public uint Min { get; set; }
     public uint Current { get; set; }
     public uint Max { get; set; }

@@ -9,7 +9,7 @@ namespace BrightnessControl.Views;
 public partial class GameProfileEditorWindow : Window
 {
     private readonly MonitorService _monitorService;
-    private readonly List<MonitorBrightnessSlider> _sliders = new();
+    private MonitorBrightnessSlider _brightnessSlider = null!;
     private readonly string? _existingId;
     private string? _processName;
     private string? _exePath;
@@ -23,9 +23,8 @@ public partial class GameProfileEditorWindow : Window
     internal GameProfileEditorWindow(MonitorService monitorService, GameProfile? existing)
     {
         InitializeComponent();
-        // Opaque dark chrome (dark title bar + rounded corners). Mica would let a light desktop
-        // wallpaper bleed through and wash the panel white; None keeps our solid dark surface.
-        DwmInterop.ApplyModernChrome(this, BackdropType.None);
+        // Acrylic Start-menu chrome, matching the flyout for a consistent look.
+        DwmInterop.ApplyAcrylic(this);
         Title = existing == null ? "Add game profile" : "Edit game profile";
         _monitorService = monitorService;
 
@@ -42,18 +41,13 @@ public partial class GameProfileEditorWindow : Window
 
     private void BuildSliders(GameProfile? existing)
     {
-        foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
+        _brightnessSlider = new MonitorBrightnessSlider
         {
-            var slider = new MonitorBrightnessSlider
-            {
-                MonitorName = monitor.FriendlyName,
-                Value = existing != null && existing.MonitorBrightness.TryGetValue(monitor.Id, out var v) ? v : 50,
-                Tag = monitor.Id,
-                Margin = new Thickness(0, 0, 0, 6),
-            };
-            _sliders.Add(slider);
-            SlidersPanel.Children.Add(slider);
-        }
+            MonitorName = "Brightness",
+            ShowGlyph = false,
+            Value = existing?.EffectiveGameBrightness ?? 50,
+        };
+        SlidersPanel.Children.Add(_brightnessSlider);
     }
 
     private void PickProcessButton_Click(object sender, RoutedEventArgs e)
@@ -88,10 +82,6 @@ public partial class GameProfileEditorWindow : Window
             return;
         }
 
-        var brightness = new Dictionary<string, int>();
-        foreach (var slider in _sliders)
-            brightness[(string)slider.Tag] = slider.Value;
-
         ResultProfile = new GameProfile
         {
             Id = _existingId ?? Guid.NewGuid().ToString("N"),
@@ -99,7 +89,7 @@ public partial class GameProfileEditorWindow : Window
             ProcessName = _processName,
             ExePath = _exePath,
             Enabled = EnabledBox.IsChecked == true,
-            MonitorBrightness = brightness,
+            GameBrightness = _brightnessSlider.Value,
         };
 
         DialogResult = true;

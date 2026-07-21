@@ -1,3 +1,5 @@
+using System.Text.Json.Serialization;
+
 namespace BrightnessControl.Models;
 
 public sealed class GameProfile
@@ -12,6 +14,18 @@ public sealed class GameProfile
 
     public bool Enabled { get; set; } = true;
 
-    /// <summary>Monitor id -> target brightness percent (0-100).</summary>
+    /// <summary>Target brightness percent (0-100) applied to whichever monitor the game runs on.
+    /// Null on profiles saved before per-monitor game targeting existed — migrated from the old
+    /// <see cref="MonitorBrightness"/> average via <see cref="EffectiveGameBrightness"/>.</summary>
+    public int? GameBrightness { get; set; }
+
+    /// <summary>Legacy per-monitor targets (monitor id -> percent). Kept only to migrate old configs.</summary>
     public Dictionary<string, int> MonitorBrightness { get; set; } = new();
+
+    /// <summary>The brightness to apply, resolving legacy per-monitor profiles to a single value.</summary>
+    [JsonIgnore]
+    public int EffectiveGameBrightness =>
+        GameBrightness ?? (MonitorBrightness.Count > 0
+            ? (int)Math.Round(MonitorBrightness.Values.Average())
+            : 50);
 }

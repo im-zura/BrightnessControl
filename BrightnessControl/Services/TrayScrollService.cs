@@ -24,6 +24,12 @@ internal sealed class TrayScrollService : IDisposable
     private LowLevelMouseProc? _proc;
     private IntPtr _hook;
 
+    // Icon window+id resolved once by reflection and cached; the low-level hook callback must stay
+    // fast (Windows silently drops a slow hook and that stutters the whole system's mouse).
+    private bool _iconResolved;
+    private IntPtr _iconHwnd;
+    private uint _iconId;
+
     public TrayScrollService(NotifyIcon notifyIcon, MonitorService monitorService, Func<AppConfig> config)
     {
         _notifyIcon = notifyIcon;
@@ -41,17 +47,23 @@ internal sealed class TrayScrollService : IDisposable
 
     private IntPtr HookProc(int nCode, IntPtr wParam, IntPtr lParam)
     {
-        if (nCode >= 0 && wParam.ToInt32() == User32Interop.WM_MOUSEWHEEL && _config().TrayScrollEnabled)
+        // A low-level hook callback must never throw and must return promptly, or Windows drops the
+        // hook and mouse input stutters system-wide. Guard everything and fall through to the chain.
+        try
         {
-            var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
-            if (CursorOverTrayIcon(data.pt))
+            if (nCode >= 0 && wParam.ToInt32() == User32Interop.WM_MOUSEWHEEL && _config().TrayScrollEnabled)
             {
-                int delta = (short)(data.mouseData >> 16);
-                int step = Math.Max(1, _config().TrayScrollStep) * Math.Sign(delta);
-                _dispatcher.BeginInvoke(() => _ = AdjustAllAsync(step));
-                return new IntPtr(1); // swallow: the wheel shouldn't scroll whatever is behind the tray
+                var data = Marshal.PtrToStructure<MSLLHOOKSTRUCT>(lParam);
+                if (CursorOverTrayIcon(data.pt))
+                {
+                    int delta = (short)(data.mouseData >> 16);
+                    int step = Math.Max(1, _config().TrayScrollStep) * Math.Sign(delta);
+                    _dispatcher.BeginInvoke(() => _ = AdjustAllAsync(step));
+                    return new IntPtr(1); // swallow: the wheel shouldn't scroll whatever is behind the tray
+                }
             }
         }
+        catch { /* never let the hook throw */ }
 
         return User32Interop.CallNextHookEx(_hook, nCode, wParam, lParam);
     }
@@ -64,11 +76,29 @@ internal sealed class TrayScrollService : IDisposable
         return cursor.X >= r.Left && cursor.X < r.Right && cursor.Y >= r.Top && cursor.Y < r.Bottom;
     }
 
-    /// <summary>Resolve the tray icon's screen rect via its (hidden) owner window + id, dug out of the
-    /// WinForms NotifyIcon by reflection. Returns false if anything is unavailable.</summary>
+    /// <summary>Resolve the tray icon's screen rect from its (hidden) owner window + id. The reflection
+    /// dig into the WinForms NotifyIcon is done once and cached; per-call work is just the native rect
+    /// query. Returns false if anything is unavailable.</summary>
     private bool TryGetIconRect(out RECT rect)
     {
         rect = default;
+        if (!EnsureIconResolved())
+            return false;
+
+        var id = new NOTIFYICONIDENTIFIER
+        {
+            cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
+            hWnd = _iconHwnd,
+            uID = _iconId,
+        };
+        return User32Interop.Shell_NotifyIconGetRect(ref id, out rect) == 0; // S_OK
+    }
+
+    private bool EnsureIconResolved()
+    {
+        if (_iconResolved)
+            return true;
+
         try
         {
             var t = typeof(NotifyIcon);
@@ -81,13 +111,10 @@ internal sealed class TrayScrollService : IDisposable
             if (hWnd == IntPtr.Zero)
                 return false;
 
-            var id = new NOTIFYICONIDENTIFIER
-            {
-                cbSize = (uint)Marshal.SizeOf<NOTIFYICONIDENTIFIER>(),
-                hWnd = hWnd,
-                uID = (uint)(int)(idField.GetValue(_notifyIcon) ?? 0),
-            };
-            return User32Interop.Shell_NotifyIconGetRect(ref id, out rect) == 0; // S_OK
+            _iconHwnd = hWnd;
+            _iconId = (uint)(int)(idField.GetValue(_notifyIcon) ?? 0);
+            _iconResolved = true;
+            return true;
         }
         catch
         {

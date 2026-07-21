@@ -3,17 +3,18 @@
 Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
 profiles** that switch automatically when a game launches and revert when it closes.
 
-Built by **[zura](https://imzura.com)** · v1.2.0 · MIT licensed.
+Built by **[zura](https://imzura.com)** · v1.2.1 · MIT licensed.
 
 <p align="center">
-  <img src="docs/flyout-v1.2.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
+  <img src="docs/flyout-v1.2.1.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
 </p>
 
 ## Features
 
 - 🖥️ **External monitor brightness** over **DDC/CI** (HDMI / DisplayPort) — no laptop panel needed.
 - 🎮 **Per‑game profiles** — e.g. Forza Horizon at 50%, Red Dead Redemption 2 at 40%. Brightness
-  ramps to the game's profile the moment it starts and drops back to your idle profile when it exits.
+  ramps to the game's profile the moment it starts — **only on the monitor the game runs on**, leaving
+  your other displays untouched — and drops back to your idle profile when it exits.
 - 🔎 **Auto‑detects installed games** from your **Steam** and **Epic** libraries — no need to have the
   game running to add it. (Falls back to a running‑process picker for other launchers.)
 - 🌙 **Remembers your everyday level** — the brightness you set from the panel is restored
@@ -25,7 +26,8 @@ Built by **[zura](https://imzura.com)** · v1.2.0 · MIT licensed.
   night) whenever no game is running. Something Windows can't do for external monitors.
 - ⌨️ **Global hotkeys** *(v1.2)* — customizable shortcuts (default `Ctrl+Alt+↑/↓`) to change
   brightness from anywhere.
-- 🖱️ **Scroll the tray icon** *(v1.2)* — roll the mouse wheel over the tray icon to nudge brightness.
+- 🖱️ **Scroll to adjust** — roll the mouse wheel over the tray icon **or directly on any slider** to
+  nudge brightness.
 - 🌗 **Contrast & color temperature** *(v1.2)* — per‑monitor fine‑tuning over DDC/CI, where supported.
 - 🎨 **Windows 11 Start‑menu style** flyout with rounded tiles, real game icons, and your **system
   accent color**.

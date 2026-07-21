@@ -3,7 +3,7 @@ using BrightnessControl.Native;
 
 namespace BrightnessControl.Services;
 
-internal sealed record PhysicalMonitorHandle(IntPtr Handle, string Description, int DisplayNumber, bool IsPrimary);
+internal sealed record PhysicalMonitorHandle(IntPtr Handle, string Description, int DisplayNumber, bool IsPrimary, string DeviceName);
 
 /// <summary>
 /// Thin wrapper around the DDC/CI P/Invoke surface. Every native call that can block
@@ -42,14 +42,16 @@ internal static class MonitorController
             var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
             int displayNumber = 0;
             bool isPrimary = false;
+            string deviceName = "";
             if (Dxva2Interop.GetMonitorInfo(hMonitor, ref mi))
             {
                 isPrimary = (mi.dwFlags & MONITORINFOF_PRIMARY) != 0;
                 displayNumber = ParseDisplayNumber(mi.szDevice);
+                deviceName = mi.szDevice;
             }
 
             foreach (var pm in physicalMonitors)
-                result.Add(new PhysicalMonitorHandle(pm.hPhysicalMonitor, pm.szPhysicalMonitorDescription, displayNumber, isPrimary));
+                result.Add(new PhysicalMonitorHandle(pm.hPhysicalMonitor, pm.szPhysicalMonitorDescription, displayNumber, isPrimary, deviceName));
 
             return true;
         }

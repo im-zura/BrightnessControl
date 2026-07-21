@@ -15,8 +15,9 @@ internal sealed class ProcessWatcherService : IDisposable
     private HashSet<string> _trackedProcessNames = new(StringComparer.OrdinalIgnoreCase);
     private System.Threading.Timer? _timer;
 
-    /// <summary>Raised with the full process name (e.g. "ForzaHorizon6.exe") when a tracked process starts.</summary>
-    public event Action<string>? ProcessStarted;
+    /// <summary>Raised with the full process name (e.g. "ForzaHorizon6.exe") and the live process when a
+    /// tracked process starts. The process lets the caller locate which monitor the game runs on.</summary>
+    public event Action<string, Process>? ProcessStarted;
 
     /// <summary>Raised with the full process name when a tracked process stops.</summary>
     public event Action<string>? ProcessStopped;
@@ -76,7 +77,7 @@ internal sealed class ProcessWatcherService : IDisposable
             lock (_lock) _runningTracked[fullName] = process;
 
             TryHookExit(fullName, process);
-            ProcessStarted?.Invoke(fullName);
+            ProcessStarted?.Invoke(fullName, process);
         }
     }
 

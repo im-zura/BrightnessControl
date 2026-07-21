@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using BrightnessControl.Models;
 
 namespace BrightnessControl.Services;
@@ -44,15 +45,31 @@ internal sealed class ProfileManager
 
         // Give the watcher one immediate poll's worth of a head start isn't needed: we can
         // check directly here using the same matching the watcher will use going forward.
-        var running = _config.GameProfiles
-            .Where(p => p.Enabled)
-            .FirstOrDefault(p => System.Diagnostics.Process.GetProcessesByName(
-                System.IO.Path.GetFileNameWithoutExtension(p.ProcessName)).Length > 0);
+        GameProfile? running = null;
+        Process? runningProcess = null;
+        foreach (var profile in _config.GameProfiles.Where(p => p.Enabled))
+        {
+            var matches = Process.GetProcessesByName(
+                System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName));
+            if (matches.Length > 0)
+            {
+                running = profile;
+                runningProcess = matches[0];
+                for (int i = 1; i < matches.Length; i++) matches[i].Dispose();
+                break;
+            }
+            foreach (var m in matches) m.Dispose();
+        }
 
         if (running != null)
-            await ApplyGameProfileAsync(running);
+        {
+            await ApplyGameProfileAsync(running, runningProcess);
+            runningProcess?.Dispose();
+        }
         else
+        {
             await ApplyNonGameStateAsync();
+        }
     }
 
     /// <summary>Re-apply the non-game brightness (schedule block or manual idle), but only when no
@@ -66,13 +83,13 @@ internal sealed class ProfileManager
         await ApplyNonGameStateAsync();
     }
 
-    private async void OnProcessStarted(string processName)
+    private async void OnProcessStarted(string processName, Process process)
     {
         var profile = _config.GameProfiles.FirstOrDefault(p =>
             p.Enabled && string.Equals(p.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
 
         if (profile != null)
-            await ApplyGameProfileAsync(profile);
+            await ApplyGameProfileAsync(profile, process);
     }
 
     private async void OnProcessStopped(string processName)
@@ -85,14 +102,39 @@ internal sealed class ProfileManager
             : null;
 
         if (profile != null)
-            await ApplyGameProfileAsync(profile);
+        {
+            var matches = Process.GetProcessesByName(
+                System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName));
+            var proc = matches.FirstOrDefault();
+            await ApplyGameProfileAsync(profile, proc);
+            foreach (var m in matches) m.Dispose();
+        }
         else
+        {
             await ApplyNonGameStateAsync();
+        }
     }
 
-    private async Task ApplyGameProfileAsync(GameProfile profile)
+    /// <summary>Applies the profile's brightness to only the monitor the game runs on. If that monitor
+    /// can't be resolved (no window found), falls back to all responsive monitors so it never no-ops.</summary>
+    private async Task ApplyGameProfileAsync(GameProfile profile, Process? gameProcess)
     {
-        await _monitorService.ApplyProfileAsync(profile.MonitorBrightness);
+        var percent = profile.EffectiveGameBrightness;
+
+        var monitorId = gameProcess != null
+            ? await GameMonitorLocator.ResolveMonitorIdAsync(gameProcess, _monitorService.Monitors)
+            : null;
+
+        if (monitorId != null)
+        {
+            await _monitorService.SetBrightnessPercentAsync(monitorId, percent);
+        }
+        else
+        {
+            foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
+                await _monitorService.SetBrightnessPercentAsync(monitor.Id, percent);
+        }
+
         ActiveProfileName = profile.Name;
         ActiveProfileChanged?.Invoke(ActiveProfileName);
     }

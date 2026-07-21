@@ -1,3 +1,4 @@
+using System.Threading;
 using System.Windows;
 using BrightnessControl.Services;
 
@@ -5,6 +6,9 @@ namespace BrightnessControl;
 
 public partial class App : System.Windows.Application
 {
+    private const string MutexName = "BrightnessControl.SingleInstance";
+    private const string ShowEventName = "BrightnessControl.ShowFlyout";
+
     private MonitorService? _monitorService;
     private ProcessWatcherService? _processWatcher;
     private ProfileManager? _profileManager;
@@ -12,9 +16,29 @@ public partial class App : System.Windows.Application
     private HotkeyService? _hotkeyService;
     private ScheduleService? _scheduleService;
 
+    private Mutex? _instanceMutex;
+    private bool _ownsMutex;
+    private EventWaitHandle? _showEvent;
+    private RegisteredWaitHandle? _showWait;
+
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // Single instance: if one is already running, ask it to surface its flyout and bow out —
+        // so a second launch doesn't add a second tray icon.
+        _instanceMutex = new Mutex(true, MutexName, out _ownsMutex);
+        if (!_ownsMutex)
+        {
+            try { EventWaitHandle.OpenExisting(ShowEventName).Set(); } catch { /* first instance is mid-teardown */ }
+            Shutdown();
+            return;
+        }
+
+        // The running instance waits on this named event; a second launch signals it (above).
+        _showEvent = new EventWaitHandle(false, EventResetMode.AutoReset, ShowEventName);
+        _showWait = ThreadPool.RegisterWaitForSingleObject(_showEvent,
+            (_, _) => Dispatcher.BeginInvoke(() => _trayIconManager?.OpenFlyout()), null, Timeout.Infinite, false);
 
         // Match the app accent to the user's live Windows accent before any window is built.
         AccentColorService.Apply();
@@ -59,15 +83,38 @@ public partial class App : System.Windows.Application
         }
 
         _trayIconManager = new TrayIconManager(_monitorService, _profileManager, state, ApplySettings);
+
+        // On logoff/shutdown, Windows may cut the process off before OnExit finishes. Release the
+        // low-level mouse hook here so it never lingers and jams system-wide mouse input.
+        SessionEnding += (_, _) => _trayIconManager?.ReleaseHooks();
+    }
+
+    /// <summary>The single exit path (flyout power button, tray "Exit"). Releases the low-level mouse
+    /// hook first — while the message loop is still healthy — so it's never left orphaned during the
+    /// window/dispatcher teardown, which is what jams the system mouse for a few seconds after exit.</summary>
+    public void RequestShutdown()
+    {
+        _trayIconManager?.ReleaseHooks();
+        Shutdown();
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _showWait?.Unregister(null);
+        _showEvent?.Dispose();
+
         _scheduleService?.Dispose();
         _hotkeyService?.Dispose();
         _trayIconManager?.Dispose();
         _processWatcher?.Dispose();
         _monitorService?.Dispose();
+
+        if (_ownsMutex)
+        {
+            try { _instanceMutex?.ReleaseMutex(); } catch { /* not owned on this thread */ }
+        }
+        _instanceMutex?.Dispose();
+
         base.OnExit(e);
     }
 }

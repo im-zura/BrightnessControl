@@ -15,6 +15,10 @@ internal sealed class MonitorService : IDisposable
 
     public event Action? MonitorsChanged;
 
+    /// <summary>Raised (monitorId, percent) after a successful brightness write, from any source
+    /// (hotkey, tray scroll, slider). Lets an open flyout mirror external changes live.</summary>
+    public event Action<string, int>? BrightnessChanged;
+
     public async Task InitializeAsync()
     {
         DisposeHandles();
@@ -31,6 +35,7 @@ internal sealed class MonitorService : IDisposable
             {
                 Id = $"monitor-{i}",
                 FriendlyName = BuildDisplayName(handle, i),
+                DeviceName = handle.DeviceName,
                 Min = success ? min : 0,
                 Current = success ? current : 0,
                 Max = success ? max : 100,
@@ -83,7 +88,10 @@ internal sealed class MonitorService : IDisposable
 
         bool ok = await MonitorController.TrySetBrightnessAsync(entry.Handle.Handle, raw);
         if (ok)
+        {
             info.Current = raw;
+            BrightnessChanged?.Invoke(monitorId, percent);
+        }
 
         return ok;
     }

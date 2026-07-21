@@ -48,6 +48,9 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
     /// <summary>Raised ~150ms after the user stops dragging, with the settled percent value.</summary>
     public event EventHandler<int>? BrightnessCommitted;
 
+    /// <summary>Percent change per mouse-wheel notch, for a Windows volume-slider feel.</summary>
+    private const int WheelStep = 2;
+
     public MonitorBrightnessSlider()
     {
         InitializeComponent();
@@ -61,6 +64,17 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
         NameText.Text = MonitorName;
         PercentText.Text = $"{Value}%";
         Slider.Value = Value;
+
+        // Scroll the wheel anywhere over the row to nudge brightness (like the system volume slider).
+        // Routing through Slider.Value reuses the drag path: PercentText, Value, and the debounced commit.
+        PreviewMouseWheel += OnPreviewMouseWheel;
+    }
+
+    private void OnPreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        int step = e.Delta > 0 ? WheelStep : -WheelStep;
+        Slider.Value = Math.Clamp((int)Math.Round(Slider.Value) + step, 0, 100);
+        e.Handled = true; // don't let the enclosing ScrollViewer scroll instead
     }
 
     private static void OnMonitorNameChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

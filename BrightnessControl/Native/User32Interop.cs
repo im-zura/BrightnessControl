@@ -31,6 +31,8 @@ internal struct NOTIFYICONIDENTIFIER
 
 internal delegate IntPtr LowLevelMouseProc(int nCode, IntPtr wParam, IntPtr lParam);
 
+internal delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
 /// <summary>P/Invoke surface for global hotkeys, the low-level mouse hook, and tray-icon geometry.</summary>
 internal static class User32Interop
 {
@@ -68,4 +70,19 @@ internal static class User32Interop
     // ---- Tray-icon geometry ----
     [DllImport("shell32.dll", SetLastError = true)]
     public static extern int Shell_NotifyIconGetRect(ref NOTIFYICONIDENTIFIER identifier, out RECT iconLocation);
+
+    // ---- Window -> monitor mapping (per-monitor game brightness) ----
+    public const uint MONITOR_DEFAULTTONEAREST = 2;
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
+    public static extern bool IsWindowVisible(IntPtr hWnd);
 }

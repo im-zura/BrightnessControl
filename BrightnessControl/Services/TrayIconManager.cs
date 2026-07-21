@@ -32,7 +32,7 @@ internal sealed class TrayIconManager : IDisposable
         contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
         var exitItem = new System.Windows.Forms.ToolStripMenuItem("Exit");
-        exitItem.Click += (_, _) => Application.Current.Shutdown();
+        exitItem.Click += (_, _) => ((App)Application.Current).RequestShutdown();
         contextMenu.Items.Add(exitItem);
 
         _notifyIcon = new System.Windows.Forms.NotifyIcon
@@ -64,6 +64,9 @@ internal sealed class TrayIconManager : IDisposable
         _notifyIcon.Text = text.Length > 63 ? text[..63] : text;
     }
 
+    /// <summary>Surface the flyout — used when a second launch is redirected to this instance.</summary>
+    public void OpenFlyout() => ShowFlyout();
+
     private void ToggleFlyout()
     {
         if (_flyout is { IsVisible: true })
@@ -87,6 +90,10 @@ internal sealed class TrayIconManager : IDisposable
         _flyout.Show();
         _flyout.Activate();
     }
+
+    /// <summary>Release the low-level mouse hook early on Windows shutdown/logoff, before the OS
+    /// tears the process down and possibly skips OnExit. Idempotent — OnExit's Dispose runs later.</summary>
+    public void ReleaseHooks() => _trayScroll.Dispose();
 
     public void Dispose()
     {

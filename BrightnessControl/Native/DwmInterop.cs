@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 
 namespace BrightnessControl.Native;
 
@@ -37,12 +38,19 @@ internal static class DwmInterop
     public static void SetBackdrop(Window window, BackdropType type) =>
         WhenHandleReady(window, hwnd => TrySet(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, (int)type));
 
-    /// <summary>Dark title bar + rounded corners + the given backdrop, in one call.</summary>
-    public static void ApplyModernChrome(Window window, BackdropType backdrop)
+    /// <summary>Full acrylic Start-menu treatment: dark title bar, rounded corners, the acrylic system
+    /// backdrop, and a transparent client area so the backdrop shows through. The window should paint a
+    /// low-alpha tint (e.g. FlyoutTintBrush) as its Background for text contrast.</summary>
+    public static void ApplyAcrylic(Window window)
     {
         UseDarkTitleBar(window);
         SetRoundedCorners(window);
-        SetBackdrop(window, backdrop);
+        SetBackdrop(window, BackdropType.Acrylic);
+        WhenHandleReady(window, _ =>
+        {
+            if (PresentationSource.FromVisual(window) is HwndSource { CompositionTarget: { } target })
+                target.BackgroundColor = Colors.Transparent;
+        });
     }
 
     private static void TrySet(IntPtr hwnd, int attribute, int value)

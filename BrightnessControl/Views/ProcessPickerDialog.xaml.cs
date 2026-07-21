@@ -24,7 +24,7 @@ public partial class ProcessPickerDialog : Window
     public ProcessPickerDialog()
     {
         InitializeComponent();
-        DwmInterop.ApplyModernChrome(this, BackdropType.None);
+        DwmInterop.ApplyAcrylic(this);
         Loaded += (_, _) => LoadProcesses();
     }
 

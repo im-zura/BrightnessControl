@@ -25,7 +25,7 @@ public partial class SettingsWindow : Window
     internal SettingsWindow(AppState state, MonitorService monitorService)
     {
         InitializeComponent();
-        DwmInterop.ApplyModernChrome(this, BackdropType.None);
+        DwmInterop.ApplyAcrylic(this);
         _state = state;
         _monitorService = monitorService;
         Load();
@@ -34,6 +34,8 @@ public partial class SettingsWindow : Window
     private void Load()
     {
         var c = _state.Config;
+
+        StartupToggle.IsChecked = c.StartWithWindows;
 
         ScheduleToggle.IsChecked = c.Schedule.Enabled;
         DayStartBox.Text = c.Schedule.DayStart;
@@ -155,6 +157,15 @@ public partial class SettingsWindow : Window
         }
 
         var c = _state.Config;
+
+        // Start-with-Windows: apply the registry Run-key change immediately when it changes.
+        var startupEnabled = StartupToggle.IsChecked == true;
+        if (startupEnabled != c.StartWithWindows)
+        {
+            c.StartWithWindows = startupEnabled;
+            StartupManager.SetEnabled(startupEnabled);
+        }
+
         c.Schedule.Enabled = ScheduleToggle.IsChecked == true;
         c.Schedule.DayStart = day;
         c.Schedule.NightStart = night;

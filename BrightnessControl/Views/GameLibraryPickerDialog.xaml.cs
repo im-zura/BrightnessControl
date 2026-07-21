@@ -27,7 +27,7 @@ public partial class GameLibraryPickerDialog : Window
     public GameLibraryPickerDialog()
     {
         InitializeComponent();
-        DwmInterop.ApplyModernChrome(this, BackdropType.None);
+        DwmInterop.ApplyAcrylic(this);
         Loaded += (_, _) => Rescan();
     }
 
