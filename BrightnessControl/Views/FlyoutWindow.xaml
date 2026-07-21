@@ -1,0 +1,76 @@
+<Window x:Class="BrightnessControl.Views.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Brightness Control" WindowStyle="None" ResizeMode="NoResize"
+        AllowsTransparency="False" Background="{StaticResource PanelSolidBrush}" ShowInTaskbar="False"
+        Topmost="True" SizeToContent="Height" Width="336"
+        Deactivated="Window_Deactivated">
+    <Border x:Name="RootBorder" Background="Transparent"
+            BorderBrush="{StaticResource CardBorderBrush}" BorderThickness="1" CornerRadius="10">
+        <Border.RenderTransform>
+            <TranslateTransform x:Name="SlideTransform" X="40"/>
+        </Border.RenderTransform>
+        <Grid Margin="16,14,16,12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <!-- Header: app title -->
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="2,0,0,14" VerticalAlignment="Center">
+                <TextBlock FontSize="15" FontFamily="{StaticResource DisplayFont}" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" Text="Brightness Control"
+                           VerticalAlignment="Center"/>
+                <TextBlock Text="v1.1.0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Bottom" Margin="7,0,0,2"/>
+            </StackPanel>
+
+            <!-- Scrollable content -->
+            <ScrollViewer Grid.Row="1" x:Name="ContentScroller" VerticalScrollBarVisibility="Auto"
+                          MaxHeight="560" Margin="0,0,-8,0" Padding="0,0,8,0">
+                <StackPanel>
+                    <TextBlock Text="Monitors" Style="{StaticResource SectionHeader}"/>
+                    <StackPanel x:Name="MonitorsPanel"/>
+                    <TextBlock x:Name="NoMonitorsText" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                               Text="No DDC/CI capable monitors detected." TextWrapping="Wrap"
+                               Visibility="Collapsed" Margin="2,2,0,4"/>
+
+                    <TextBlock Text="Game profiles" Style="{StaticResource SectionHeader}" Margin="2,18,0,8"/>
+                    <WrapPanel x:Name="GamesPanel"/>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Bottom bar: branding + toggle + power -->
+            <Grid Grid.Row="2" Margin="0,14,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <Border Grid.Column="0" Grid.ColumnSpan="2" Height="1"
+                        Background="{StaticResource DividerBrush}" VerticalAlignment="Top" Margin="0,-8,0,0"/>
+
+                <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                    <TextBlock FontSize="11.5">
+                        <Run Text="BY - " Foreground="{StaticResource TextSecondaryBrush}"/><Hyperlink
+                            x:Name="SiteLink" Click="SiteLink_Click" TextDecorations="None"
+                            Foreground="{StaticResource AccentTextBrush}"><Run x:Name="SiteText" Text="imzura.com"/></Hyperlink>
+                    </TextBlock>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <CheckBox x:Name="StartupToggle" Style="{StaticResource ToggleSwitch}" Content="Startup"
+                              VerticalAlignment="Center" Margin="0,0,10,0"
+                              Checked="StartupToggle_Changed" Unchecked="StartupToggle_Changed"/>
+                    <Button x:Name="ExitButton" Style="{StaticResource IconButton}" Click="ExitButton_Click"
+                            ToolTip="Exit">
+                        <Path Data="M12 3 L12 11 M6.5 5.5 A6 6 0 1 0 17.5 5.5" Stroke="{StaticResource TextSecondaryBrush}"
+                              StrokeThickness="1.6" StrokeStartLineCap="Round" StrokeEndLineCap="Round"
+                              Width="18" Height="18" Stretch="Uniform"/>
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Grid>
+    </Border>
+</Window>

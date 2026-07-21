@@ -1,0 +1,28 @@
+<UserControl x:Class="BrightnessControl.Views.Controls.MonitorBrightnessSlider"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:controls="clr-namespace:BrightnessControl.Views.Controls"
+             mc:Ignorable="d"
+             d:DesignWidth="260">
+    <StackPanel Margin="0,6">
+        <Grid Margin="0,0,0,6">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <controls:MonitorGlyph Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="NameText" Grid.Column="1" FontSize="12.5" VerticalAlignment="Center"
+                       TextTrimming="CharacterEllipsis"
+                       Foreground="{StaticResource TextPrimaryBrush}"/>
+            <TextBlock x:Name="PercentText" Grid.Column="2" FontSize="12.5" Width="30"
+                       TextAlignment="Right" VerticalAlignment="Center"
+                       Foreground="{StaticResource TextSecondaryBrush}"/>
+        </Grid>
+        <Slider x:Name="Slider" Minimum="0" Maximum="100" SmallChange="1" LargeChange="10"
+                IsSnapToTickEnabled="True" TickFrequency="1"
+                ValueChanged="Slider_ValueChanged"/>
+    </StackPanel>
+</UserControl>

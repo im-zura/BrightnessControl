@@ -1,0 +1,56 @@
+<Window x:Class="BrightnessControl.Views.GameLibraryPickerDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pick a game" Height="470" Width="480"
+        Background="{StaticResource WindowBgBrush}"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBox x:Name="FilterBox" Grid.Row="0" Margin="0,0,0,8"
+                 TextChanged="FilterBox_TextChanged"
+                 ToolTip="Filter by game name"/>
+
+        <Grid Grid.Row="1">
+            <ListView x:Name="GameList" MouseDoubleClick="GameList_MouseDoubleClick">
+                <ListView.View>
+                    <GridView>
+                        <GridViewColumn Header="Game" Width="230" DisplayMemberBinding="{Binding Name}"/>
+                        <GridViewColumn Header="Source" Width="100" DisplayMemberBinding="{Binding Source}"/>
+                    </GridView>
+                </ListView.View>
+            </ListView>
+            <TextBlock x:Name="EmptyStateText" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
+                       TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       TextAlignment="Center" Width="280" Visibility="Collapsed"
+                       Text="No installed Steam or Epic games found. Try Rescan, or pick from running processes instead."/>
+        </Grid>
+
+        <TextBlock x:Name="ValidationText" Grid.Row="2" Foreground="{StaticResource DangerBrush}" FontSize="11"
+                   Margin="0,8,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+
+        <Grid Grid.Row="3" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <StackPanel Grid.Column="0" Orientation="Horizontal">
+                <Button x:Name="RescanButton" Content="Rescan" Margin="0,0,8,0" Click="RescanButton_Click"/>
+                <Button x:Name="RunningProcessButton" Content="Running process…"
+                        Click="RunningProcessButton_Click"/>
+            </StackPanel>
+
+            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Cancel" Width="80" Margin="0,0,8,0" Click="CancelButton_Click"/>
+                <Button x:Name="SelectButton" Content="Select" Width="80" IsDefault="True" Click="SelectButton_Click"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

@@ -1,0 +1,19 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+
+# Installer build artifacts (the setup.exe is attached to GitHub Releases, not committed)
+installer/Output/
+
+# Rider / VS
+.vs/
+.idea/
+*.user
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Local tooling config
+.claude/settings.local.json
