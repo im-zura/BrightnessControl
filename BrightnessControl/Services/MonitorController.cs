@@ -102,4 +102,68 @@ internal static class MonitorController
         try { return await task; }
         catch { return false; }
     }
+
+    public static async Task<(bool Success, uint Min, uint Current, uint Max)> TryGetContrastAsync(IntPtr handle)
+    {
+        var task = Task.Run(() =>
+        {
+            bool ok = Dxva2Interop.GetMonitorContrast(handle, out uint min, out uint current, out uint max);
+            return (ok, min, current, max);
+        });
+
+        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
+        if (completed != task)
+            return (false, 0, 0, 0);
+
+        try { return await task; }
+        catch { return (false, 0, 0, 0); }
+    }
+
+    public static async Task<bool> TrySetContrastAsync(IntPtr handle, uint rawValue)
+    {
+        var task = Task.Run(() =>
+        {
+            try { return Dxva2Interop.SetMonitorContrast(handle, rawValue); }
+            catch { return false; }
+        });
+
+        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
+        if (completed != task)
+            return false;
+
+        try { return await task; }
+        catch { return false; }
+    }
+
+    public static async Task<(bool Success, MC_COLOR_TEMPERATURE Current)> TryGetColorTemperatureAsync(IntPtr handle)
+    {
+        var task = Task.Run(() =>
+        {
+            bool ok = Dxva2Interop.GetMonitorColorTemperature(handle, out var current);
+            return (ok, current);
+        });
+
+        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
+        if (completed != task)
+            return (false, MC_COLOR_TEMPERATURE.Unknown);
+
+        try { return await task; }
+        catch { return (false, MC_COLOR_TEMPERATURE.Unknown); }
+    }
+
+    public static async Task<bool> TrySetColorTemperatureAsync(IntPtr handle, MC_COLOR_TEMPERATURE value)
+    {
+        var task = Task.Run(() =>
+        {
+            try { return Dxva2Interop.SetMonitorColorTemperature(handle, value); }
+            catch { return false; }
+        });
+
+        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
+        if (completed != task)
+            return false;
+
+        try { return await task; }
+        catch { return false; }
+    }
 }

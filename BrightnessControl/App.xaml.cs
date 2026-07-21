@@ -9,6 +9,8 @@ public partial class App : System.Windows.Application
     private ProcessWatcherService? _processWatcher;
     private ProfileManager? _profileManager;
     private TrayIconManager? _trayIconManager;
+    private HotkeyService? _hotkeyService;
+    private ScheduleService? _scheduleService;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
@@ -43,11 +45,26 @@ public partial class App : System.Windows.Application
         _profileManager = new ProfileManager(_monitorService, _processWatcher, config);
         await _profileManager.ReconcileOnStartupAsync();
 
-        _trayIconManager = new TrayIconManager(_monitorService, _profileManager, state);
+        _hotkeyService = new HotkeyService(_monitorService, () => state.Config);
+        _hotkeyService.Initialize();
+
+        _scheduleService = new ScheduleService(_profileManager, () => state.Config);
+        _scheduleService.Start();
+
+        // Applied by the Settings dialog on Save: re-register hotkeys and re-evaluate the schedule now.
+        void ApplySettings()
+        {
+            _hotkeyService.ApplyConfig();
+            _ = _profileManager.ReapplyNonGameAsync();
+        }
+
+        _trayIconManager = new TrayIconManager(_monitorService, _profileManager, state, ApplySettings);
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
+        _scheduleService?.Dispose();
+        _hotkeyService?.Dispose();
         _trayIconManager?.Dispose();
         _processWatcher?.Dispose();
         _monitorService?.Dispose();

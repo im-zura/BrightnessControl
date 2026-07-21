@@ -13,7 +13,7 @@
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <controls:MonitorGlyph Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"/>
+            <controls:MonitorGlyph x:Name="Glyph" Grid.Column="0" Margin="0,0,8,0" VerticalAlignment="Center"/>
             <TextBlock x:Name="NameText" Grid.Column="1" FontSize="12.5" VerticalAlignment="Center"
                        TextTrimming="CharacterEllipsis"
                        Foreground="{StaticResource TextPrimaryBrush}"/>

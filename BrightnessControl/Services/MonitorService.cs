@@ -1,4 +1,5 @@
 using BrightnessControl.Models;
+using BrightnessControl.Native;
 
 namespace BrightnessControl.Services;
 
@@ -36,6 +37,25 @@ internal sealed class MonitorService : IDisposable
                 IsResponsive = success,
             };
 
+            if (success)
+            {
+                var (cok, cmin, ccur, cmax) = await MonitorController.TryGetContrastAsync(handle.Handle);
+                if (cok && cmax > cmin)
+                {
+                    info.SupportsContrast = true;
+                    info.ContrastMin = cmin;
+                    info.ContrastCurrent = ccur;
+                    info.ContrastMax = cmax;
+                }
+
+                var (tok, temp) = await MonitorController.TryGetColorTemperatureAsync(handle.Handle);
+                if (tok && temp != MC_COLOR_TEMPERATURE.Unknown)
+                {
+                    info.SupportsTemperature = true;
+                    info.Temperature = temp;
+                }
+            }
+
             _monitors.Add((handle, info));
         }
 
@@ -72,6 +92,36 @@ internal sealed class MonitorService : IDisposable
     {
         foreach (var (monitorId, percent) in monitorBrightness)
             await SetBrightnessPercentAsync(monitorId, percent);
+    }
+
+    public async Task<bool> SetContrastPercentAsync(string monitorId, int percent)
+    {
+        var entry = _monitors.FirstOrDefault(m => m.Info.Id == monitorId);
+        if (entry.Info is null || !entry.Info.SupportsContrast)
+            return false;
+
+        percent = Math.Clamp(percent, 0, 100);
+        var info = entry.Info;
+        uint raw = (uint)Math.Round(info.ContrastMin + percent / 100.0 * (info.ContrastMax - info.ContrastMin));
+
+        bool ok = await MonitorController.TrySetContrastAsync(entry.Handle.Handle, raw);
+        if (ok)
+            info.ContrastCurrent = raw;
+
+        return ok;
+    }
+
+    public async Task<bool> SetColorTemperatureAsync(string monitorId, MC_COLOR_TEMPERATURE temperature)
+    {
+        var entry = _monitors.FirstOrDefault(m => m.Info.Id == monitorId);
+        if (entry.Info is null || !entry.Info.SupportsTemperature || temperature == MC_COLOR_TEMPERATURE.Unknown)
+            return false;
+
+        bool ok = await MonitorController.TrySetColorTemperatureAsync(entry.Handle.Handle, temperature);
+        if (ok)
+            entry.Info.Temperature = temperature;
+
+        return ok;
     }
 
     private void DisposeHandles()

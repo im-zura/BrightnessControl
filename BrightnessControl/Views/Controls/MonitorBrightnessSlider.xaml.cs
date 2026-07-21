@@ -22,6 +22,17 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
         nameof(Value), typeof(int), typeof(MonitorBrightnessSlider),
         new PropertyMetadata(50, OnValueChanged));
 
+    public static readonly DependencyProperty ShowGlyphProperty = DependencyProperty.Register(
+        nameof(ShowGlyph), typeof(bool), typeof(MonitorBrightnessSlider),
+        new PropertyMetadata(true, OnShowGlyphChanged));
+
+    /// <summary>Whether to show the monitor glyph. Off for non-monitor rows like "Contrast".</summary>
+    public bool ShowGlyph
+    {
+        get => (bool)GetValue(ShowGlyphProperty);
+        set => SetValue(ShowGlyphProperty, value);
+    }
+
     public string MonitorName
     {
         get => (string)GetValue(MonitorNameProperty);
@@ -56,6 +67,12 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
     {
         if (d is MonitorBrightnessSlider control)
             control.NameText.Text = (string)e.NewValue;
+    }
+
+    private static void OnShowGlyphChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is MonitorBrightnessSlider control)
+            control.Glyph.Visibility = (bool)e.NewValue ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static void OnValueChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)

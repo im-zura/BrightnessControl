@@ -52,7 +52,18 @@ internal sealed class ProfileManager
         if (running != null)
             await ApplyGameProfileAsync(running);
         else
-            await ApplyIdleProfileAsync();
+            await ApplyNonGameStateAsync();
+    }
+
+    /// <summary>Re-apply the non-game brightness (schedule block or manual idle), but only when no
+    /// tracked game is currently running. Called by ScheduleService on a day/night boundary and after
+    /// the user edits the schedule.</summary>
+    public async Task ReapplyNonGameAsync()
+    {
+        if (_watcher.CurrentlyRunning.Any())
+            return;
+
+        await ApplyNonGameStateAsync();
     }
 
     private async void OnProcessStarted(string processName)
@@ -76,7 +87,7 @@ internal sealed class ProfileManager
         if (profile != null)
             await ApplyGameProfileAsync(profile);
         else
-            await ApplyIdleProfileAsync();
+            await ApplyNonGameStateAsync();
     }
 
     private async Task ApplyGameProfileAsync(GameProfile profile)
@@ -86,10 +97,11 @@ internal sealed class ProfileManager
         ActiveProfileChanged?.Invoke(ActiveProfileName);
     }
 
-    private async Task ApplyIdleProfileAsync()
+    private async Task ApplyNonGameStateAsync()
     {
-        await _monitorService.ApplyProfileAsync(_config.IdleProfile.MonitorBrightness);
-        ActiveProfileName = "Idle";
+        var (brightness, label) = ScheduleService.ResolveNonGame(_config, DateTime.Now);
+        await _monitorService.ApplyProfileAsync(brightness);
+        ActiveProfileName = label;
         ActiveProfileChanged?.Invoke(ActiveProfileName);
     }
 }

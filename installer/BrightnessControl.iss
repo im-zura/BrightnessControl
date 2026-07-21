@@ -2,7 +2,7 @@
 ; Builds a self-contained installer; no .NET runtime needed on the target machine.
 
 #define MyAppName "Brightness Control"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.2.0"
 #define MyAppPublisher "IMZURA"
 #define MyAppURL "https://imzura.com"
 #define MyAppExeName "BrightnessControl.exe"
@@ -28,6 +28,8 @@ SetupIconFile=..\BrightnessControl\Assets\app.ico
 Compression=lzma2/max
 SolidCompression=yes
 WizardStyle=modern
+WizardImageFile=wizard-large.bmp
+WizardSmallImageFile=wizard-small.bmp
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
@@ -42,11 +44,13 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 Source: "{#PublishDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+; Ship the icon so shortcuts always have a guaranteed source (independent of the exe's embedded icon).
+Source: "..\BrightnessControl\Assets\app.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"
 Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
-Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\app.ico"; Tasks: desktopicon
 
 [Run]
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent

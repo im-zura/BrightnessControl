@@ -1,0 +1,109 @@
+<Window x:Class="BrightnessControl.Views.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Settings" SizeToContent="Height" Width="420" MaxHeight="760"
+        Background="{StaticResource WindowBgBrush}"
+        WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid Margin="20,18,20,18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" Margin="0,0,-8,0" Padding="0,0,8,0">
+            <StackPanel>
+                <!-- Schedule -->
+                <Grid>
+                    <TextBlock Text="Day / night schedule" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="ScheduleToggle" Style="{StaticResource ToggleSwitch}"
+                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Text="Auto-adjusts brightness by time of day when no game is running."
+                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap" Margin="2,0,0,10"/>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10" Margin="0,0,0,8">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,2">
+                            <TextBlock Text="☀ Day starts" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox x:Name="DayStartBox" Width="70" HorizontalAlignment="Right"
+                                     TextAlignment="Center"/>
+                        </Grid>
+                        <StackPanel x:Name="DaySliders"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,2">
+                            <TextBlock Text="🌙 Night starts" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox x:Name="NightStartBox" Width="70" HorizontalAlignment="Right"
+                                     TextAlignment="Center"/>
+                        </Grid>
+                        <StackPanel x:Name="NightSliders"/>
+                    </StackPanel>
+                </Border>
+
+                <!-- Hotkeys -->
+                <Grid Margin="0,20,0,0">
+                    <TextBlock Text="Global hotkeys" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="HotkeyToggle" Style="{StaticResource ToggleSwitch}"
+                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="Brightness up" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Button x:Name="UpHotkeyButton" Content="—" Width="150" HorizontalAlignment="Right"
+                                    Click="CaptureUp_Click"/>
+                        </Grid>
+                        <Grid Margin="0,0,0,8">
+                            <TextBlock Text="Brightness down" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <Button x:Name="DownHotkeyButton" Content="—" Width="150" HorizontalAlignment="Right"
+                                    Click="CaptureDown_Click"/>
+                        </Grid>
+                        <Grid>
+                            <TextBlock Text="Step (%)" FontSize="12.5" VerticalAlignment="Center"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBox x:Name="HotkeyStepBox" Width="60" HorizontalAlignment="Right" TextAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Tray scroll -->
+                <Grid Margin="0,20,0,0">
+                    <TextBlock Text="Tray icon scroll" Style="{StaticResource SectionHeader}"/>
+                    <CheckBox x:Name="TrayScrollToggle" Style="{StaticResource ToggleSwitch}"
+                              HorizontalAlignment="Right" VerticalAlignment="Center"/>
+                </Grid>
+                <TextBlock Text="Scroll the mouse wheel over the tray icon to change brightness."
+                           FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                           TextWrapping="Wrap" Margin="2,0,0,10"/>
+                <Border Background="{StaticResource CardBrush}" BorderBrush="{StaticResource CardBorderBrush}"
+                        BorderThickness="1" CornerRadius="8" Padding="12,10">
+                    <Grid>
+                        <TextBlock Text="Step (%)" FontSize="12.5" VerticalAlignment="Center"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBox x:Name="TrayStepBox" Width="60" HorizontalAlignment="Right" TextAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <TextBlock x:Name="ValidationText" Foreground="{StaticResource DangerBrush}" FontSize="11.5"
+                           Margin="2,12,0,0" TextWrapping="Wrap" Visibility="Collapsed"/>
+            </StackPanel>
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,18,0,0">
+            <Button Content="Cancel" Width="84" Margin="0,0,8,0" Click="CancelButton_Click"/>
+            <Button Content="Save" Width="84" IsDefault="True" Click="SaveButton_Click"/>
+        </StackPanel>
+    </Grid>
+</Window>

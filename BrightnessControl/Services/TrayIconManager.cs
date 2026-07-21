@@ -10,14 +10,18 @@ internal sealed class TrayIconManager : IDisposable
     private readonly MonitorService _monitorService;
     private readonly ProfileManager _profileManager;
     private readonly AppState _state;
+    private readonly Action _onSettingsChanged;
+    private readonly TrayScrollService _trayScroll;
 
     private FlyoutWindow? _flyout;
 
-    public TrayIconManager(MonitorService monitorService, ProfileManager profileManager, AppState state)
+    public TrayIconManager(MonitorService monitorService, ProfileManager profileManager, AppState state,
+        Action onSettingsChanged)
     {
         _monitorService = monitorService;
         _profileManager = profileManager;
         _state = state;
+        _onSettingsChanged = onSettingsChanged;
 
         var contextMenu = new System.Windows.Forms.ContextMenuStrip();
 
@@ -47,6 +51,11 @@ internal sealed class TrayIconManager : IDisposable
 
         _profileManager.ActiveProfileChanged += UpdateTooltip;
         UpdateTooltip(_profileManager.ActiveProfileName);
+
+        // Mouse-wheel-over-tray-icon brightness. Needs the NotifyIcon's window to exist, which it does
+        // now that Visible=true was set above.
+        _trayScroll = new TrayScrollService(_notifyIcon, monitorService, () => state.Config);
+        _trayScroll.Initialize();
     }
 
     private void UpdateTooltip(string activeProfileName)
@@ -74,13 +83,14 @@ internal sealed class TrayIconManager : IDisposable
             return;
         }
 
-        _flyout = new FlyoutWindow(_state, _monitorService, _profileManager);
+        _flyout = new FlyoutWindow(_state, _monitorService, _profileManager, _onSettingsChanged);
         _flyout.Show();
         _flyout.Activate();
     }
 
     public void Dispose()
     {
+        _trayScroll.Dispose();
         _notifyIcon.Visible = false;
         _notifyIcon.Dispose();
     }

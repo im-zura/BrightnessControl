@@ -22,7 +22,7 @@
                 <TextBlock FontSize="15" FontFamily="{StaticResource DisplayFont}" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}" Text="Brightness Control"
                            VerticalAlignment="Center"/>
-                <TextBlock Text="v1.1.0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                <TextBlock Text="v1.2.0" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Bottom" Margin="7,0,0,2"/>
             </StackPanel>
 
@@ -63,6 +63,12 @@
                     <CheckBox x:Name="StartupToggle" Style="{StaticResource ToggleSwitch}" Content="Startup"
                               VerticalAlignment="Center" Margin="0,0,10,0"
                               Checked="StartupToggle_Changed" Unchecked="StartupToggle_Changed"/>
+                    <Button x:Name="SettingsButton" Style="{StaticResource IconButton}" Click="SettingsButton_Click"
+                            ToolTip="Settings">
+                        <Path Data="M12 8.5 A3.5 3.5 0 1 0 12 15.5 A3.5 3.5 0 1 0 12 8.5 M12 2.5 L12 5 M12 19 L12 21.5 M21.5 12 L19 12 M5 12 L2.5 12 M18.7 5.3 L16.9 7.1 M7.1 16.9 L5.3 18.7 M18.7 18.7 L16.9 16.9 M7.1 7.1 L5.3 5.3"
+                              Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" Width="18" Height="18" Stretch="Uniform"/>
+                    </Button>
                     <Button x:Name="ExitButton" Style="{StaticResource IconButton}" Click="ExitButton_Click"
                             ToolTip="Exit">
                         <Path Data="M12 3 L12 11 M6.5 5.5 A6 6 0 1 0 17.5 5.5" Stroke="{StaticResource TextSecondaryBrush}"

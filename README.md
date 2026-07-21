@@ -3,7 +3,7 @@
 Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
 profiles** that switch automatically when a game launches and revert when it closes.
 
-Built by **[zura](https://imzura.com)** · v1.1.0 · MIT licensed.
+Built by **[zura](https://imzura.com)** · v1.2.0 · MIT licensed.
 
 <p align="center">
   <img src="docs/flyout.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
@@ -20,6 +20,13 @@ Built by **[zura](https://imzura.com)** · v1.1.0 · MIT licensed.
   automatically whenever no tracked game is running, so it's back to normal the moment a game closes.
 - 🖥️ **Clear multi‑monitor labels** — each display is named by its **Windows display number**
   (Display 1 · main, Display 2…), matching Settings → Display.
+- 🎚️ **All‑monitors master slider** — move every display together with one control.
+- ⏰ **Day / night schedule** *(v1.2)* — auto‑dim on a per‑monitor schedule (e.g. 80% by day, 30% at
+  night) whenever no game is running. Something Windows can't do for external monitors.
+- ⌨️ **Global hotkeys** *(v1.2)* — customizable shortcuts (default `Ctrl+Alt+↑/↓`) to change
+  brightness from anywhere.
+- 🖱️ **Scroll the tray icon** *(v1.2)* — roll the mouse wheel over the tray icon to nudge brightness.
+- 🌗 **Contrast & color temperature** *(v1.2)* — per‑monitor fine‑tuning over DDC/CI, where supported.
 - 🎨 **Windows 11 Start‑menu style** flyout with rounded tiles, real game icons, and your **system
   accent color**.
 - 🚀 **Starts with Windows** (optional), lives quietly in the tray.
@@ -34,7 +41,7 @@ Built by **[zura](https://imzura.com)** · v1.1.0 · MIT licensed.
 
 ## Download & install
 
-Grab **`BrightnessControl-Setup-1.1.0.exe`** from the [Releases](../../releases) page and run it — the
+Grab **`BrightnessControl-Setup-1.2.0.exe`** from the [Releases](../../releases) page and run it — the
 installer is **self‑contained** (no .NET runtime required), adds a Start‑menu shortcut, and can create
 a desktop icon. Once installed, the app appears in your system tray — **left‑click** the icon to open
 the panel. Toggle **Startup** in the panel to launch it with Windows.

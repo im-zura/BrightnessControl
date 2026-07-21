@@ -31,10 +31,12 @@ public partial class FlyoutWindow : Window
     private readonly AppState _state;
     private readonly MonitorService _monitorService;
     private readonly ProfileManager _profileManager;
+    private readonly Action _onSettingsChanged;
     private int _openDialogCount;
     private DateTime _shownAt;
 
-    internal FlyoutWindow(AppState state, MonitorService monitorService, ProfileManager profileManager)
+    internal FlyoutWindow(AppState state, MonitorService monitorService, ProfileManager profileManager,
+        Action onSettingsChanged)
     {
         InitializeComponent();
         // Opaque window (renders reliably) + DWM-rounded corners for the Start-menu look.
@@ -44,6 +46,7 @@ public partial class FlyoutWindow : Window
         _state = state;
         _monitorService = monitorService;
         _profileManager = profileManager;
+        _onSettingsChanged = onSettingsChanged;
 
         SiteText.Text = AppInfo.Site;
         StartupToggle.IsChecked = _state.Config.StartWithWindows;
@@ -58,33 +61,191 @@ public partial class FlyoutWindow : Window
 
     // ---- Monitors ----------------------------------------------------------
 
+    private readonly Dictionary<string, MonitorBrightnessSlider> _monitorSliders = new();
+
     private void BuildMonitors()
     {
         MonitorsPanel.Children.Clear();
+        _monitorSliders.Clear();
         var monitors = _monitorService.Monitors.Where(m => m.IsResponsive).ToList();
         NoMonitorsText.Visibility = monitors.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
 
+        // Master "All monitors" control (only meaningful with more than one display).
+        if (monitors.Count > 1)
+            MonitorsPanel.Children.Add(BuildMasterCard(monitors));
+
         foreach (var monitor in monitors)
-        {
-            var slider = new MonitorBrightnessSlider
-            {
-                MonitorName = monitor.FriendlyName,
-                Value = monitor.CurrentPercent,
-            };
-
-            var monitorId = monitor.Id;
-            // The live slider doubles as the idle/default preset: what you set here is restored
-            // when a tracked game closes (ProfileManager applies Config.IdleProfile.MonitorBrightness).
-            slider.BrightnessCommitted += async (_, percent) =>
-            {
-                _state.Config.IdleProfile.MonitorBrightness[monitorId] = percent;
-                ConfigStore.Save(_state.Config);
-                await _monitorService.SetBrightnessPercentAsync(monitorId, percent);
-            };
-
-            MonitorsPanel.Children.Add(Card(slider, new Thickness(0, 0, 0, 8)));
-        }
+            MonitorsPanel.Children.Add(BuildMonitorCard(monitor));
     }
+
+    private Border BuildMasterCard(List<Models.MonitorInfo> monitors)
+    {
+        var master = new MonitorBrightnessSlider
+        {
+            MonitorName = "All monitors",
+            Value = (int)Math.Round(monitors.Average(m => m.CurrentPercent)),
+        };
+        master.BrightnessCommitted += async (_, percent) =>
+        {
+            foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
+            {
+                _state.Config.IdleProfile.MonitorBrightness[monitor.Id] = percent;
+                await _monitorService.SetBrightnessPercentAsync(monitor.Id, percent);
+                if (_monitorSliders.TryGetValue(monitor.Id, out var s))
+                    s.Value = percent;
+            }
+            ConfigStore.Save(_state.Config);
+        };
+        return Card(master, new Thickness(0, 0, 0, 8));
+    }
+
+    private Border BuildMonitorCard(Models.MonitorInfo monitor)
+    {
+        var monitorId = monitor.Id;
+        var stack = new StackPanel();
+
+        var slider = new MonitorBrightnessSlider
+        {
+            MonitorName = monitor.FriendlyName,
+            Value = monitor.CurrentPercent,
+        };
+        _monitorSliders[monitorId] = slider;
+        // The live slider doubles as the idle/default preset: what you set here is restored
+        // when a tracked game closes (ProfileManager applies Config.IdleProfile.MonitorBrightness).
+        slider.BrightnessCommitted += async (_, percent) =>
+        {
+            _state.Config.IdleProfile.MonitorBrightness[monitorId] = percent;
+            ConfigStore.Save(_state.Config);
+            await _monitorService.SetBrightnessPercentAsync(monitorId, percent);
+        };
+        stack.Children.Add(slider);
+
+        if (monitor.SupportsContrast || monitor.SupportsTemperature)
+            stack.Children.Add(BuildAdvancedPanel(monitor));
+
+        return Card(stack, new Thickness(0, 0, 0, 8));
+    }
+
+    private UIElement BuildAdvancedPanel(Models.MonitorInfo monitor)
+    {
+        var advanced = new StackPanel { Visibility = Visibility.Collapsed, Margin = new Thickness(0, 6, 0, 0) };
+
+        var toggle = new TextBlock
+        {
+            Text = "Advanced ▾",
+            FontSize = 11,
+            Foreground = Brush("AccentTextBrush"),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Margin = new Thickness(2, 2, 0, 0),
+        };
+        toggle.MouseLeftButtonUp += (_, _) =>
+        {
+            var show = advanced.Visibility != Visibility.Visible;
+            advanced.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
+            toggle.Text = show ? "Advanced ▴" : "Advanced ▾";
+        };
+
+        if (monitor.SupportsContrast)
+        {
+            var contrast = new MonitorBrightnessSlider
+            {
+                MonitorName = "Contrast",
+                ShowGlyph = false,
+                Value = monitor.ContrastPercent,
+            };
+            var id = monitor.Id;
+            contrast.BrightnessCommitted += async (_, percent) =>
+                await _monitorService.SetContrastPercentAsync(id, percent);
+            advanced.Children.Add(contrast);
+        }
+
+        if (monitor.SupportsTemperature)
+            advanced.Children.Add(BuildTemperatureRow(monitor));
+
+        var container = new StackPanel();
+        container.Children.Add(toggle);
+        container.Children.Add(advanced);
+        return container;
+    }
+
+    private static readonly MC_COLOR_TEMPERATURE[] TempPresets =
+    {
+        MC_COLOR_TEMPERATURE.T4000K, MC_COLOR_TEMPERATURE.T5000K, MC_COLOR_TEMPERATURE.T6500K,
+        MC_COLOR_TEMPERATURE.T7500K, MC_COLOR_TEMPERATURE.T8200K, MC_COLOR_TEMPERATURE.T9300K,
+        MC_COLOR_TEMPERATURE.T10000K, MC_COLOR_TEMPERATURE.T11500K,
+    };
+
+    private UIElement BuildTemperatureRow(Models.MonitorInfo monitor)
+    {
+        var grid = new Grid { Margin = new Thickness(0, 8, 0, 2) };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var label = new TextBlock
+        {
+            Text = "Temperature", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center,
+            Foreground = Brush("TextPrimaryBrush"),
+        };
+        Grid.SetColumn(label, 0);
+
+        var value = new TextBlock
+        {
+            Text = TempLabel(monitor.Temperature), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
+            TextAlignment = TextAlignment.Right, MinWidth = 52, Margin = new Thickness(0, 0, 6, 0),
+            Foreground = Brush("TextSecondaryBrush"),
+        };
+        Grid.SetColumn(value, 2);
+
+        var warmer = TempButton("−");
+        Grid.SetColumn(warmer, 3);
+        var cooler = TempButton("+");
+        Grid.SetColumn(cooler, 4);
+
+        var id = monitor.Id;
+        async void Step(int dir)
+        {
+            var idx = Array.IndexOf(TempPresets, monitor.Temperature);
+            if (idx < 0) idx = 2; // default near 6500K
+            idx = Math.Clamp(idx + dir, 0, TempPresets.Length - 1);
+            var target = TempPresets[idx];
+            if (await _monitorService.SetColorTemperatureAsync(id, target))
+                value.Text = TempLabel(monitor.Temperature);
+        }
+        warmer.Click += (_, _) => Step(-1); // lower Kelvin = warmer
+        cooler.Click += (_, _) => Step(+1);
+
+        grid.Children.Add(label);
+        grid.Children.Add(value);
+        grid.Children.Add(warmer);
+        grid.Children.Add(cooler);
+        return grid;
+    }
+
+    private Button TempButton(string glyph) => new()
+    {
+        Content = glyph,
+        Style = (Style)FindResource("IconButton"),
+        Width = 26,
+        Height = 24,
+        FontSize = 15,
+        Foreground = Brush("TextPrimaryBrush"),
+    };
+
+    private static string TempLabel(MC_COLOR_TEMPERATURE t) => t switch
+    {
+        MC_COLOR_TEMPERATURE.T4000K => "4000K",
+        MC_COLOR_TEMPERATURE.T5000K => "5000K",
+        MC_COLOR_TEMPERATURE.T6500K => "6500K",
+        MC_COLOR_TEMPERATURE.T7500K => "7500K",
+        MC_COLOR_TEMPERATURE.T8200K => "8200K",
+        MC_COLOR_TEMPERATURE.T9300K => "9300K",
+        MC_COLOR_TEMPERATURE.T10000K => "10000K",
+        MC_COLOR_TEMPERATURE.T11500K => "11500K",
+        _ => "—",
+    };
 
     // ---- Game tiles --------------------------------------------------------
 
@@ -282,6 +443,16 @@ public partial class FlyoutWindow : Window
     }
 
     private void ExitButton_Click(object sender, RoutedEventArgs e) => Application.Current.Shutdown();
+
+    private void SettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        var settings = new SettingsWindow(_state, _monitorService) { Owner = this };
+        if (ShowModal(settings) == true)
+        {
+            _onSettingsChanged();
+            BuildMonitors();
+        }
+    }
 
     // ---- Window behavior ---------------------------------------------------
 
