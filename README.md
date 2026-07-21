@@ -1,8 +1,7 @@
 # Brightness Control — IMZURA
 
-Control your **external monitors' brightness** right from Windows 11 — with a twist Twinkle Tray
-doesn't have: **per‑game brightness profiles** that switch automatically when a game launches and
-revert when it closes.
+Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
+profiles** that switch automatically when a game launches and revert when it closes.
 
 Built by **[zura](https://imzura.com)** · v1.1.0 · MIT licensed.
 
