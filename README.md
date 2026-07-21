@@ -5,8 +5,9 @@ profiles** that switch automatically when a game launches and revert when it clo
 
 Built by **[zura](https://imzura.com)** · v1.1.0 · MIT licensed.
 
-<!-- Add a screenshot of the flyout here once you have one: -->
-<!-- ![Brightness Control flyout](docs/flyout.png) -->
+<p align="center">
+  <img src="docs/flyout.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
+</p>
 
 ## Features
 
