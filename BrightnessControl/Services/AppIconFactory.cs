@@ -1,8 +1,5 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using System.Windows;
-using System.Windows.Interop;
-using System.Windows.Media.Imaging;
 
 namespace BrightnessControl.Services;
 
@@ -25,23 +22,6 @@ internal static class AppIconFactory
         finally
         {
             DestroyIcon(hicon);
-        }
-    }
-
-    public static BitmapSource CreateImageSource(int size = 64)
-    {
-        using var bmp = DrawLogo(size);
-        var hbmp = bmp.GetHbitmap();
-        try
-        {
-            var src = Imaging.CreateBitmapSourceFromHBitmap(
-                hbmp, IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-            src.Freeze();
-            return src;
-        }
-        finally
-        {
-            DeleteObject(hbmp);
         }
     }
 
@@ -102,7 +82,4 @@ internal static class AppIconFactory
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern bool DestroyIcon(IntPtr handle);
-
-    [System.Runtime.InteropServices.DllImport("gdi32.dll")]
-    private static extern bool DeleteObject(IntPtr hObject);
 }

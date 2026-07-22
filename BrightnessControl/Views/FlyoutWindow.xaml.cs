@@ -61,6 +61,9 @@ public partial class FlyoutWindow : Window
             _monitorService.BrightnessChanged -= OnBrightnessChanged;
         };
         Loaded += (_, _) => { PositionNearTray(); AnimateIn(); ForceForeground(); };
+        // Re-pin the bottom edge whenever content grows/shrinks (e.g. the Advanced/Contrast panel
+        // expands) so the flyout grows UPWARD and never slides down over the taskbar.
+        SizeChanged += (_, _) => PositionNearTray();
 
         BuildMonitors();
         BuildGameTiles();
@@ -139,7 +142,7 @@ public partial class FlyoutWindow : Window
         };
         stack.Children.Add(slider);
 
-        if (monitor.SupportsContrast || monitor.SupportsTemperature)
+        if (monitor.SupportsContrast)
             stack.Children.Add(BuildAdvancedPanel(monitor));
 
         return Card(stack, new Thickness(0, 0, 0, 8));
@@ -178,93 +181,11 @@ public partial class FlyoutWindow : Window
             advanced.Children.Add(contrast);
         }
 
-        if (monitor.SupportsTemperature)
-            advanced.Children.Add(BuildTemperatureRow(monitor));
-
         var container = new StackPanel();
         container.Children.Add(toggle);
         container.Children.Add(advanced);
         return container;
     }
-
-    private static readonly MC_COLOR_TEMPERATURE[] TempPresets =
-    {
-        MC_COLOR_TEMPERATURE.T4000K, MC_COLOR_TEMPERATURE.T5000K, MC_COLOR_TEMPERATURE.T6500K,
-        MC_COLOR_TEMPERATURE.T7500K, MC_COLOR_TEMPERATURE.T8200K, MC_COLOR_TEMPERATURE.T9300K,
-        MC_COLOR_TEMPERATURE.T10000K, MC_COLOR_TEMPERATURE.T11500K,
-    };
-
-    private UIElement BuildTemperatureRow(Models.MonitorInfo monitor)
-    {
-        var grid = new Grid { Margin = new Thickness(0, 8, 0, 2) };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var label = new TextBlock
-        {
-            Text = "Temperature", FontSize = 12.5, VerticalAlignment = VerticalAlignment.Center,
-            Foreground = Brush("TextPrimaryBrush"),
-        };
-        Grid.SetColumn(label, 0);
-
-        var value = new TextBlock
-        {
-            Text = TempLabel(monitor.Temperature), FontSize = 12, VerticalAlignment = VerticalAlignment.Center,
-            TextAlignment = TextAlignment.Right, MinWidth = 52, Margin = new Thickness(0, 0, 6, 0),
-            Foreground = Brush("TextSecondaryBrush"),
-        };
-        Grid.SetColumn(value, 2);
-
-        var warmer = TempButton("−");
-        Grid.SetColumn(warmer, 3);
-        var cooler = TempButton("+");
-        Grid.SetColumn(cooler, 4);
-
-        var id = monitor.Id;
-        async void Step(int dir)
-        {
-            var idx = Array.IndexOf(TempPresets, monitor.Temperature);
-            if (idx < 0) idx = 2; // default near 6500K
-            idx = Math.Clamp(idx + dir, 0, TempPresets.Length - 1);
-            var target = TempPresets[idx];
-            if (await _monitorService.SetColorTemperatureAsync(id, target))
-                value.Text = TempLabel(monitor.Temperature);
-        }
-        warmer.Click += (_, _) => Step(-1); // lower Kelvin = warmer
-        cooler.Click += (_, _) => Step(+1);
-
-        grid.Children.Add(label);
-        grid.Children.Add(value);
-        grid.Children.Add(warmer);
-        grid.Children.Add(cooler);
-        return grid;
-    }
-
-    private Button TempButton(string glyph) => new()
-    {
-        Content = glyph,
-        Style = (Style)FindResource("IconButton"),
-        Width = 26,
-        Height = 24,
-        FontSize = 15,
-        Foreground = Brush("TextPrimaryBrush"),
-    };
-
-    private static string TempLabel(MC_COLOR_TEMPERATURE t) => t switch
-    {
-        MC_COLOR_TEMPERATURE.T4000K => "4000K",
-        MC_COLOR_TEMPERATURE.T5000K => "5000K",
-        MC_COLOR_TEMPERATURE.T6500K => "6500K",
-        MC_COLOR_TEMPERATURE.T7500K => "7500K",
-        MC_COLOR_TEMPERATURE.T8200K => "8200K",
-        MC_COLOR_TEMPERATURE.T9300K => "9300K",
-        MC_COLOR_TEMPERATURE.T10000K => "10000K",
-        MC_COLOR_TEMPERATURE.T11500K => "11500K",
-        _ => "—",
-    };
 
     // ---- Game tiles --------------------------------------------------------
 
@@ -487,7 +408,9 @@ public partial class FlyoutWindow : Window
         // window off-screen on any monitor scaled above 100%.)
         var wa = SystemParameters.WorkArea;
         Left = wa.Right - ActualWidth - 4;
-        Top = wa.Bottom - ActualHeight - 4;
+        // Pin the bottom edge just above the taskbar and let height grow upward. Clamp Top to the
+        // top of the work area so a very tall flyout can't run off the top (ScrollViewer caps it).
+        Top = Math.Max(wa.Top, wa.Bottom - ActualHeight - 4);
     }
 
     private void AnimateIn()

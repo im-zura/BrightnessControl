@@ -19,9 +19,9 @@
     <AssemblyTitle>Brightness Control — IMZURA</AssemblyTitle>
     <Authors>zura</Authors>
     <Company>imzura.com</Company>
-    <Version>1.2.1</Version>
-    <FileVersion>1.2.1.0</FileVersion>
-    <AssemblyVersion>1.2.1.0</AssemblyVersion>
+    <Version>1.2.2</Version>
+    <FileVersion>1.2.2.0</FileVersion>
+    <AssemblyVersion>1.2.2.0</AssemblyVersion>
     <Copyright>© 2026 zura — imzura.com</Copyright>
     <Description>Control external monitor brightness with per-game profiles. By zura (imzura.com).</Description>
   </PropertyGroup>

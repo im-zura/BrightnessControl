@@ -136,36 +136,4 @@ internal static class MonitorController
         try { return await task; }
         catch { return false; }
     }
-
-    public static async Task<(bool Success, MC_COLOR_TEMPERATURE Current)> TryGetColorTemperatureAsync(IntPtr handle)
-    {
-        var task = Task.Run(() =>
-        {
-            bool ok = Dxva2Interop.GetMonitorColorTemperature(handle, out var current);
-            return (ok, current);
-        });
-
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
-        if (completed != task)
-            return (false, MC_COLOR_TEMPERATURE.Unknown);
-
-        try { return await task; }
-        catch { return (false, MC_COLOR_TEMPERATURE.Unknown); }
-    }
-
-    public static async Task<bool> TrySetColorTemperatureAsync(IntPtr handle, MC_COLOR_TEMPERATURE value)
-    {
-        var task = Task.Run(() =>
-        {
-            try { return Dxva2Interop.SetMonitorColorTemperature(handle, value); }
-            catch { return false; }
-        });
-
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
-        if (completed != task)
-            return false;
-
-        try { return await task; }
-        catch { return false; }
-    }
 }

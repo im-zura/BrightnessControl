@@ -1,5 +1,4 @@
 using BrightnessControl.Models;
-using BrightnessControl.Native;
 
 namespace BrightnessControl.Services;
 
@@ -12,8 +11,6 @@ internal sealed class MonitorService : IDisposable
     private readonly List<(PhysicalMonitorHandle Handle, MonitorInfo Info)> _monitors = new();
 
     public IReadOnlyList<MonitorInfo> Monitors => _monitors.Select(m => m.Info).ToList();
-
-    public event Action? MonitorsChanged;
 
     /// <summary>Raised (monitorId, percent) after a successful brightness write, from any source
     /// (hotkey, tray scroll, slider). Lets an open flyout mirror external changes live.</summary>
@@ -52,19 +49,10 @@ internal sealed class MonitorService : IDisposable
                     info.ContrastCurrent = ccur;
                     info.ContrastMax = cmax;
                 }
-
-                var (tok, temp) = await MonitorController.TryGetColorTemperatureAsync(handle.Handle);
-                if (tok && temp != MC_COLOR_TEMPERATURE.Unknown)
-                {
-                    info.SupportsTemperature = true;
-                    info.Temperature = temp;
-                }
             }
 
             _monitors.Add((handle, info));
         }
-
-        MonitorsChanged?.Invoke();
     }
 
     /// <summary>Labels a monitor by its Windows display number ("Display 1"/"Display 2" — the same
@@ -115,19 +103,6 @@ internal sealed class MonitorService : IDisposable
         bool ok = await MonitorController.TrySetContrastAsync(entry.Handle.Handle, raw);
         if (ok)
             info.ContrastCurrent = raw;
-
-        return ok;
-    }
-
-    public async Task<bool> SetColorTemperatureAsync(string monitorId, MC_COLOR_TEMPERATURE temperature)
-    {
-        var entry = _monitors.FirstOrDefault(m => m.Info.Id == monitorId);
-        if (entry.Info is null || !entry.Info.SupportsTemperature || temperature == MC_COLOR_TEMPERATURE.Unknown)
-            return false;
-
-        bool ok = await MonitorController.TrySetColorTemperatureAsync(entry.Handle.Handle, temperature);
-        if (ok)
-            entry.Info.Temperature = temperature;
 
         return ok;
     }

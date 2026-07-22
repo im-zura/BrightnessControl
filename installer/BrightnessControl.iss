@@ -2,7 +2,7 @@
 ; Builds a self-contained installer; no .NET runtime needed on the target machine.
 
 #define MyAppName "Brightness Control"
-#define MyAppVersion "1.2.1"
+#define MyAppVersion "1.2.2"
 #define MyAppPublisher "IMZURA"
 #define MyAppURL "https://imzura.com"
 #define MyAppExeName "BrightnessControl.exe"

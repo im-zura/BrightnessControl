@@ -29,20 +29,6 @@ internal struct PHYSICAL_MONITOR
 
 internal delegate bool MonitorEnumProc(IntPtr hMonitor, IntPtr hdcMonitor, ref RECT lprcMonitor, IntPtr dwData);
 
-/// <summary>DDC/CI color-temperature presets (MC_COLOR_TEMPERATURE). Support varies by monitor.</summary>
-public enum MC_COLOR_TEMPERATURE
-{
-    Unknown = 0,
-    T4000K = 1,
-    T5000K = 2,
-    T6500K = 3,
-    T7500K = 4,
-    T8200K = 5,
-    T9300K = 6,
-    T10000K = 7,
-    T11500K = 8,
-}
-
 /// <summary>Raw P/Invoke surface for DDC/CI monitor control. No business logic here.</summary>
 internal static class Dxva2Interop
 {
@@ -72,10 +58,4 @@ internal static class Dxva2Interop
 
     [DllImport("dxva2.dll", SetLastError = true)]
     public static extern bool SetMonitorContrast(IntPtr hMonitor, uint dwNewContrast);
-
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool GetMonitorColorTemperature(IntPtr hMonitor, out MC_COLOR_TEMPERATURE pctCurrentColorTemperature);
-
-    [DllImport("dxva2.dll", SetLastError = true)]
-    public static extern bool SetMonitorColorTemperature(IntPtr hMonitor, MC_COLOR_TEMPERATURE ctCurrentColorTemperature);
 }

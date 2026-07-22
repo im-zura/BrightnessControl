@@ -3,7 +3,7 @@
 Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
 profiles** that switch automatically when a game launches and revert when it closes.
 
-Built by **[zura](https://imzura.com)** · v1.2.1 · MIT licensed.
+Built by **[zura](https://imzura.com)** · v1.2.2 · MIT licensed.
 
 <p align="center">
   <img src="docs/flyout-v1.2.1.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
@@ -28,7 +28,7 @@ Built by **[zura](https://imzura.com)** · v1.2.1 · MIT licensed.
   brightness from anywhere.
 - 🖱️ **Scroll to adjust** — roll the mouse wheel over the tray icon **or directly on any slider** to
   nudge brightness.
-- 🌗 **Contrast & color temperature** *(v1.2)* — per‑monitor fine‑tuning over DDC/CI, where supported.
+- 🌗 **Per‑monitor contrast** *(v1.2)* — fine‑tune contrast over DDC/CI, where supported.
 - 🎨 **Windows 11 Start‑menu style** flyout with rounded tiles, real game icons, and your **system
   accent color**.
 - 🚀 **Starts with Windows** (optional), lives quietly in the tray.
@@ -43,7 +43,7 @@ Built by **[zura](https://imzura.com)** · v1.2.1 · MIT licensed.
 
 ## Download & install
 
-Grab **`BrightnessControl-Setup-1.2.0.exe`** from the [Releases](../../releases) page and run it — the
+Grab **`BrightnessControl-Setup-1.2.2.exe`** from the [Releases](../../releases) page and run it — the
 installer is **self‑contained** (no .NET runtime required), adds a Start‑menu shortcut, and can create
 a desktop icon. Once installed, the app appears in your system tray — **left‑click** the icon to open
 the panel. Toggle **Startup** in the panel to launch it with Windows.
