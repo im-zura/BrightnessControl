@@ -31,11 +31,33 @@ panel blinks and wakes back up while Windows keeps driving the output); value `5
 the monitor's DDC circuit, so only its physical button brings it back. The app uses the Windows
 display topology instead.
 
-Zura confirmed by hand on 2026-08-17: switching the monitor off and on **at its own physical
-button** while the app is running (section 1), and switching it off and on **from the app**
-(3.2/3.3) — both work.
+### Verified by hand, 2026-08-17
 
-**Still open:** 2.3–2.6, 3.4–3.7, 4.1–4.8, and the cable/sleep/resume steps in section 1.
+**Battlefield 6, a real anti-cheat protected game in exclusive fullscreen** — the scenario the
+whole release exists for:
+
+```
+01:09:16.237  game started: bf6.exe (pid 32576)
+01:09:16.238  applying game profile 'Battlefield™ 6' at 50% to mon-xmi2001-…
+01:09:25.906  display change: display settings changed      <- BF6 taking the display fullscreen
+01:09:27.103  display change: display settings changed
+01:09:51.641  game stopped: bf6.exe (exit event)
+01:09:51.641  applying 'Night' profile: …=15%, …=15%
+01:10:07.235  display change: monitor device change         <- monitor switched off at its button
+01:10:09.651  monitors: Display 1 · main
+01:10:16.381  display change: monitor device change         <- and back on
+01:10:19.636  monitors: Display 1 · main, Display 2
+01:10:19.650  applying 'Night' profile: …=15%, …=15%
+```
+
+Both screens at 15% → only the game's screen went to 50% → back to 15% on quit → the monitor was
+switched off and on at its own button and came back at 15%. No `ERROR`, no superseded applies, and
+the game's own fullscreen mode switch did not disturb its brightness.
+
+Also verified: switching the display off and on **from the app** (3.2/3.3).
+
+**Still open:** sleep/resume, cable unplug, reboot, running the installer as an upgrade,
+and 2.3–2.6 / 3.4–3.7 / 4.1–4.8.
 
 ---
 
