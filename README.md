@@ -54,7 +54,8 @@ Built by **[zura](https://imzura.com)** · v1.3.0 · MIT licensed.
 Grab **`BrightnessControl-Setup-1.3.0.exe`** from the [Releases](../../releases) page and run it — the
 installer is **self‑contained** (no .NET runtime required), adds a Start‑menu shortcut, and can create
 a desktop icon. Once installed, the app appears in your system tray — **left‑click** the icon to open
-the panel. Toggle **Startup** in the panel to launch it with Windows.
+the panel. The gear button at the bottom opens **Settings**, where **Startup**, the day/night
+schedule, the hotkeys and the tray‑scroll step live.
 
 ## Build from source
 
