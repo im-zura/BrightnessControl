@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace BrightnessControl.Services;
 
 /// <summary>
@@ -12,9 +14,12 @@ internal static class AppInfo
     public const string Author = "zura";
     public const string Site = "imzura.com";
     public const string SiteUrl = "https://imzura.com";
-    public const string Version = "1.1.0";
     public const string Copyright = "© 2026 zura · imzura.com";
 
-    /// <summary>e.g. "Brightness Control v1.1.0".</summary>
+    /// <summary>Taken from the assembly so the csproj is the only place a release number is typed.</summary>
+    public static readonly string Version =
+        Assembly.GetExecutingAssembly().GetName().Version is { } v ? $"{v.Major}.{v.Minor}.{v.Build}" : "0.0.0";
+
+    /// <summary>e.g. "Brightness Control v1.3.0".</summary>
     public static string NameWithVersion => $"{Name} v{Version}";
 }

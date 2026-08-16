@@ -3,7 +3,8 @@ using BrightnessControl.Native;
 
 namespace BrightnessControl.Services;
 
-internal sealed record PhysicalMonitorHandle(IntPtr Handle, string Description, int DisplayNumber, bool IsPrimary, string DeviceName);
+internal sealed record PhysicalMonitorHandle(
+    IntPtr Handle, string Description, int DisplayNumber, bool IsPrimary, string DeviceName, string DevicePath);
 
 /// <summary>
 /// Thin wrapper around the DDC/CI P/Invoke surface. Every native call that can block
@@ -16,9 +17,12 @@ internal static class MonitorController
 
     private const uint MONITORINFOF_PRIMARY = 1;
 
-    /// <summary>Extracts the trailing number from a GDI device name like "\\.\DISPLAY1" → 1; 0 if none.</summary>
-    private static int ParseDisplayNumber(string device)
+    /// <summary>Extracts the trailing number from a GDI device name like "\\.\DISPLAY1" to 1; 0 if none.</summary>
+    public static int ParseDisplayNumber(string device)
     {
+        if (string.IsNullOrEmpty(device))
+            return 0;
+
         int i = device.Length;
         while (i > 0 && char.IsDigit(device[i - 1])) i--;
         return i < device.Length && int.TryParse(device[i..], out var n) ? n : 0;
@@ -37,7 +41,7 @@ internal static class MonitorController
             if (!Dxva2Interop.GetPhysicalMonitorsFromHMONITOR(hMonitor, count, physicalMonitors))
                 return true;
 
-            // Pull the Windows display number (the "1"/"2" shown in Settings → Display) and primary flag
+            // Pull the Windows display number (the "1"/"2" shown in Settings > Display) and primary flag
             // from the device name, e.g. "\\.\DISPLAY1", so labels match what the user sees in Windows.
             var mi = new MONITORINFOEX { cbSize = Marshal.SizeOf<MONITORINFOEX>() };
             int displayNumber = 0;
@@ -50,13 +54,29 @@ internal static class MonitorController
                 deviceName = mi.szDevice;
             }
 
-            foreach (var pm in physicalMonitors)
-                result.Add(new PhysicalMonitorHandle(pm.hPhysicalMonitor, pm.szPhysicalMonitorDescription, displayNumber, isPrimary, deviceName));
+            // Stable per-monitor identity (survives power-cycling the display, unlike enumeration order).
+            var devicePaths = DisplayDeviceInterop.MonitorDevicePaths(deviceName);
+
+            for (int i = 0; i < physicalMonitors.Length; i++)
+            {
+                var pm = physicalMonitors[i];
+                var devicePath = i < devicePaths.Count ? devicePaths[i] : "";
+                result.Add(new PhysicalMonitorHandle(
+                    pm.hPhysicalMonitor, pm.szPhysicalMonitorDescription, displayNumber, isPrimary, deviceName, devicePath));
+            }
 
             return true;
         }
 
-        Dxva2Interop.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, EnumCallback, IntPtr.Zero);
+        try
+        {
+            Dxva2Interop.EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, EnumCallback, IntPtr.Zero);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("monitor enumeration failed", ex);
+        }
+
         return result;
     }
 
@@ -66,74 +86,55 @@ internal static class MonitorController
             .Select(h => new PHYSICAL_MONITOR { hPhysicalMonitor = h.Handle, szPhysicalMonitorDescription = h.Description })
             .ToArray();
 
-        if (array.Length > 0)
-        {
-            try { Dxva2Interop.DestroyPhysicalMonitors((uint)array.Length, array); }
-            catch (COMException) { /* handle already invalid, e.g. monitor unplugged */ }
-        }
+        if (array.Length == 0)
+            return;
+
+        try { Dxva2Interop.DestroyPhysicalMonitors((uint)array.Length, array); }
+        catch (COMException) { /* handle already invalid, e.g. monitor unplugged */ }
+        catch (Exception ex) { Log.Warn($"DestroyPhysicalMonitors failed: {ex.Message}"); }
     }
 
-    public static async Task<(bool Success, uint Min, uint Current, uint Max)> TryGetBrightnessAsync(IntPtr handle)
-    {
-        var task = Task.Run(() =>
+    // ---- Brightness / contrast -------------------------------------------------
+
+    public static Task<(bool Success, uint Min, uint Current, uint Max)> TryGetBrightnessAsync(IntPtr handle) =>
+        RunAsync(() =>
         {
             bool ok = Dxva2Interop.GetMonitorBrightness(handle, out uint min, out uint current, out uint max);
             return (ok, min, current, max);
-        });
+        }, (false, 0u, 0u, 0u), NativeCallTimeout);
 
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
-        if (completed != task)
-            return (false, 0, 0, 0);
+    public static Task<bool> TrySetBrightnessAsync(IntPtr handle, uint rawValue) =>
+        RunAsync(() => Dxva2Interop.SetMonitorBrightness(handle, rawValue), false, NativeCallTimeout);
 
-        try { return await task; }
-        catch { return (false, 0, 0, 0); }
-    }
-
-    public static async Task<bool> TrySetBrightnessAsync(IntPtr handle, uint rawValue)
-    {
-        var task = Task.Run(() =>
-        {
-            try { return Dxva2Interop.SetMonitorBrightness(handle, rawValue); }
-            catch { return false; }
-        });
-
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
-        if (completed != task)
-            return false;
-
-        try { return await task; }
-        catch { return false; }
-    }
-
-    public static async Task<(bool Success, uint Min, uint Current, uint Max)> TryGetContrastAsync(IntPtr handle)
-    {
-        var task = Task.Run(() =>
+    public static Task<(bool Success, uint Min, uint Current, uint Max)> TryGetContrastAsync(IntPtr handle) =>
+        RunAsync(() =>
         {
             bool ok = Dxva2Interop.GetMonitorContrast(handle, out uint min, out uint current, out uint max);
             return (ok, min, current, max);
-        });
+        }, (false, 0u, 0u, 0u), NativeCallTimeout);
 
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
-        if (completed != task)
-            return (false, 0, 0, 0);
+    public static Task<bool> TrySetContrastAsync(IntPtr handle, uint rawValue) =>
+        RunAsync(() => Dxva2Interop.SetMonitorContrast(handle, rawValue), false, NativeCallTimeout);
 
-        try { return await task; }
-        catch { return (false, 0, 0, 0); }
-    }
+    // ---- Timeout plumbing ------------------------------------------------------
 
-    public static async Task<bool> TrySetContrastAsync(IntPtr handle, uint rawValue)
+    /// <summary>Runs a blocking native call off the caller's thread and gives up after <paramref name="timeout"/>.
+    /// A monitor that never answers (asleep, DDC disabled) must not be able to hang the app.</summary>
+    private static async Task<T> RunAsync<T>(Func<T> nativeCall, T fallback, TimeSpan timeout)
     {
         var task = Task.Run(() =>
         {
-            try { return Dxva2Interop.SetMonitorContrast(handle, rawValue); }
-            catch { return false; }
+            try { return nativeCall(); }
+            catch { return fallback; }
         });
 
-        var completed = await Task.WhenAny(task, Task.Delay(NativeCallTimeout));
+        using var cts = new CancellationTokenSource();
+        var completed = await Task.WhenAny(task, Task.Delay(timeout, cts.Token)).ConfigureAwait(false);
         if (completed != task)
-            return false;
+            return fallback;
 
-        try { return await task; }
-        catch { return false; }
+        cts.Cancel(); // release the timer instead of leaving it to expire
+        try { return await task.ConfigureAwait(false); }
+        catch { return fallback; }
     }
 }

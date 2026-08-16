@@ -6,18 +6,30 @@ namespace BrightnessControl.Services;
 /// <summary>
 /// Owns "which profile is currently applied" and reacts to game start/stop events by
 /// applying the matching game profile's brightness, or falling back to the idle profile.
+///
+/// Every apply runs under an intent generation taken from <see cref="MonitorService"/>. Locating a
+/// game's monitor can take seconds, and without that stamp a game profile that was still resolving
+/// when the game exited would overwrite the idle brightness that had already been restored — the
+/// "brightness stayed at the game's level after quitting" bug.
 /// </summary>
 internal sealed class ProfileManager
 {
     private readonly MonitorService _monitorService;
     private readonly ProcessWatcherService _watcher;
-    private AppConfig _config;
+    private readonly Func<AppConfig> _config;
+
+    private CancellationTokenSource? _gameApplyCts;
+    private readonly object _ctsLock = new();
 
     public string ActiveProfileName { get; private set; } = "Idle";
 
+    /// <summary>True while a tracked game is running — manual brightness changes are not remembered
+    /// as the everyday level then.</summary>
+    public bool IsGameRunning => _watcher.CurrentlyRunning.Any();
+
     public event Action<string>? ActiveProfileChanged;
 
-    public ProfileManager(MonitorService monitorService, ProcessWatcherService watcher, AppConfig config)
+    public ProfileManager(MonitorService monitorService, ProcessWatcherService watcher, Func<AppConfig> config)
     {
         _monitorService = monitorService;
         _watcher = watcher;
@@ -28,11 +40,10 @@ internal sealed class ProfileManager
     }
 
     /// <summary>Refreshes the set of process names being watched. Call after profiles are added/edited.</summary>
-    public void UpdateConfig(AppConfig config)
+    public void UpdateTrackedProcesses()
     {
-        _config = config;
         _watcher.UpdateTrackedProcessNames(
-            config.GameProfiles.Where(p => p.Enabled).Select(p => p.ProcessName));
+            _config().GameProfiles.Where(p => p.Enabled).Select(p => p.ProcessName));
     }
 
     /// <summary>Run once at startup: checks whether a tracked game is already running and applies
@@ -40,35 +51,46 @@ internal sealed class ProfileManager
     /// deterministic on every launch instead of "whatever it happened to be".</summary>
     public async Task ReconcileOnStartupAsync()
     {
-        UpdateConfig(_config);
-        _watcher.Start(_config.PollingIntervalMs);
+        UpdateTrackedProcesses();
+        _watcher.Start(_config().PollingIntervalMs);
+        await ApplyCurrentStateAsync().ConfigureAwait(false);
+    }
 
-        // Give the watcher one immediate poll's worth of a head start isn't needed: we can
-        // check directly here using the same matching the watcher will use going forward.
+    /// <summary>Re-applies whatever should be showing right now — the running game's profile, or the
+    /// schedule/idle level. Called at startup, and again whenever the monitor set changes so a display
+    /// that just woke up gets the right brightness instead of whatever it powered on with.</summary>
+    public async Task ApplyCurrentStateAsync()
+    {
+        var config = _config();
+
         GameProfile? running = null;
         Process? runningProcess = null;
-        foreach (var profile in _config.GameProfiles.Where(p => p.Enabled))
-        {
-            var matches = Process.GetProcessesByName(
-                System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName));
-            if (matches.Length > 0)
-            {
-                running = profile;
-                runningProcess = matches[0];
-                for (int i = 1; i < matches.Length; i++) matches[i].Dispose();
-                break;
-            }
-            foreach (var m in matches) m.Dispose();
-        }
+        var processes = new List<Process>();
 
-        if (running != null)
+        try
         {
-            await ApplyGameProfileAsync(running, runningProcess);
-            runningProcess?.Dispose();
+            foreach (var profile in config.GameProfiles.Where(p => p.Enabled))
+            {
+                Process[] matches;
+                try { matches = Process.GetProcessesByName(System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName)); }
+                catch { continue; }
+
+                processes.AddRange(matches);
+                if (matches.Length > 0 && running == null)
+                {
+                    running = profile;
+                    runningProcess = matches[0];
+                }
+            }
+
+            if (running != null)
+                await ApplyGameProfileAsync(running, runningProcess).ConfigureAwait(false);
+            else
+                await ApplyNonGameStateAsync().ConfigureAwait(false);
         }
-        else
+        finally
         {
-            await ApplyNonGameStateAsync();
+            foreach (var p in processes) p.Dispose();
         }
     }
 
@@ -80,38 +102,55 @@ internal sealed class ProfileManager
         if (_watcher.CurrentlyRunning.Any())
             return;
 
-        await ApplyNonGameStateAsync();
+        await ApplyNonGameStateAsync().ConfigureAwait(false);
     }
 
-    private async void OnProcessStarted(string processName, Process process)
+    private async void OnProcessStarted(string processName, Process? process)
     {
-        var profile = _config.GameProfiles.FirstOrDefault(p =>
-            p.Enabled && string.Equals(p.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
+        try
+        {
+            var profile = _config().GameProfiles.FirstOrDefault(p =>
+                p.Enabled && string.Equals(p.ProcessName, processName, StringComparison.OrdinalIgnoreCase));
 
-        if (profile != null)
-            await ApplyGameProfileAsync(profile, process);
+            if (profile != null)
+                await ApplyGameProfileAsync(profile, process).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            Log.Error($"applying profile for {processName} failed", ex);
+        }
     }
 
     private async void OnProcessStopped(string processName)
     {
-        // If another tracked game is still running (edge case), stay on it; otherwise go idle.
-        var stillRunning = _watcher.CurrentlyRunning.FirstOrDefault();
-        var profile = stillRunning != null
-            ? _config.GameProfiles.FirstOrDefault(p => p.Enabled &&
-                string.Equals(p.ProcessName, stillRunning, StringComparison.OrdinalIgnoreCase))
-            : null;
+        try
+        {
+            // A game profile may still be resolving this game's monitor; cancel it before restoring.
+            CancelPendingGameApply();
 
-        if (profile != null)
-        {
-            var matches = Process.GetProcessesByName(
-                System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName));
-            var proc = matches.FirstOrDefault();
-            await ApplyGameProfileAsync(profile, proc);
-            foreach (var m in matches) m.Dispose();
+            // If another tracked game is still running (edge case), stay on it; otherwise go idle.
+            var stillRunning = _watcher.CurrentlyRunning.FirstOrDefault();
+            var profile = stillRunning != null
+                ? _config().GameProfiles.FirstOrDefault(p => p.Enabled &&
+                    string.Equals(p.ProcessName, stillRunning, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            if (profile == null)
+            {
+                await ApplyNonGameStateAsync().ConfigureAwait(false);
+                return;
+            }
+
+            Process[] matches;
+            try { matches = Process.GetProcessesByName(System.IO.Path.GetFileNameWithoutExtension(profile.ProcessName)); }
+            catch { matches = Array.Empty<Process>(); }
+
+            try { await ApplyGameProfileAsync(profile, matches.FirstOrDefault()).ConfigureAwait(false); }
+            finally { foreach (var m in matches) m.Dispose(); }
         }
-        else
+        catch (Exception ex)
         {
-            await ApplyNonGameStateAsync();
+            Log.Error($"restoring brightness after {processName} failed", ex);
         }
     }
 
@@ -120,30 +159,96 @@ internal sealed class ProfileManager
     private async Task ApplyGameProfileAsync(GameProfile profile, Process? gameProcess)
     {
         var percent = profile.EffectiveGameBrightness;
+        var generation = _monitorService.BeginIntent();
 
-        var monitorId = gameProcess != null
-            ? await GameMonitorLocator.ResolveMonitorIdAsync(gameProcess, _monitorService.Monitors)
-            : null;
+        var cancellation = ResetPendingGameApply();
+
+        string? monitorId = null;
+        if (gameProcess != null)
+        {
+            monitorId = await GameMonitorLocator
+                .ResolveMonitorIdAsync(gameProcess, _monitorService.Monitors, cancellation)
+                .ConfigureAwait(false);
+        }
+
+        // The game may have exited while we waited for its window — the idle profile has already
+        // been restored by then, and writing the game's level now is exactly what got stuck.
+        if (!_monitorService.IsCurrentIntent(generation) || cancellation.IsCancellationRequested)
+        {
+            Log.Info($"game profile '{profile.Name}' abandoned — superseded before it could apply");
+            return;
+        }
+
+        Log.Info($"applying game profile '{profile.Name}' at {percent}% to {monitorId ?? "all monitors"}");
 
         if (monitorId != null)
         {
-            await _monitorService.SetBrightnessPercentAsync(monitorId, percent);
+            await _monitorService.SetBrightnessPercentAsync(monitorId, percent, generation, verify: true)
+                .ConfigureAwait(false);
         }
         else
         {
-            foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
-                await _monitorService.SetBrightnessPercentAsync(monitor.Id, percent);
+            var targets = _monitorService.Monitors
+                .Where(m => m.IsResponsive)
+                .ToDictionary(m => m.Id, _ => percent);
+            await _monitorService.ApplyProfileAsync(targets, generation).ConfigureAwait(false);
         }
 
-        ActiveProfileName = profile.Name;
-        ActiveProfileChanged?.Invoke(ActiveProfileName);
+        SetActiveProfile(profile.Name);
     }
 
     private async Task ApplyNonGameStateAsync()
     {
-        var (brightness, label) = ScheduleService.ResolveNonGame(_config, DateTime.Now);
-        await _monitorService.ApplyProfileAsync(brightness);
-        ActiveProfileName = label;
-        ActiveProfileChanged?.Invoke(ActiveProfileName);
+        var config = _config();
+        var (brightness, label) = ScheduleService.ResolveNonGame(config, DateTime.Now);
+        var generation = _monitorService.BeginIntent();
+
+        Log.Info($"applying '{label}' profile: {string.Join(", ", brightness.Select(kv => $"{kv.Key}={kv.Value}%"))}");
+
+        await _monitorService.ApplyProfileAsync(brightness, generation).ConfigureAwait(false);
+        SetActiveProfile(label);
+    }
+
+    private void SetActiveProfile(string name)
+    {
+        ActiveProfileName = name;
+        ActiveProfileChanged?.Invoke(name);
+    }
+
+    /// <summary>Starts a fresh cancellation scope for a game apply and cancels the previous one.</summary>
+    private CancellationToken ResetPendingGameApply()
+    {
+        CancellationTokenSource cts = new();
+        CancellationTokenSource? previous;
+
+        lock (_ctsLock)
+        {
+            previous = _gameApplyCts;
+            _gameApplyCts = cts;
+        }
+
+        Cancel(previous);
+        return cts.Token;
+    }
+
+    private void CancelPendingGameApply()
+    {
+        CancellationTokenSource? previous;
+        lock (_ctsLock)
+        {
+            previous = _gameApplyCts;
+            _gameApplyCts = null;
+        }
+
+        Cancel(previous);
+    }
+
+    private static void Cancel(CancellationTokenSource? cts)
+    {
+        if (cts is null)
+            return;
+
+        try { cts.Cancel(); } catch (ObjectDisposedException) { }
+        cts.Dispose();
     }
 }

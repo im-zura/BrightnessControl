@@ -22,7 +22,7 @@
                 <TextBlock FontSize="15" FontFamily="{StaticResource DisplayFont}" FontWeight="SemiBold"
                            Foreground="{StaticResource TextPrimaryBrush}" Text="Brightness Control"
                            VerticalAlignment="Center"/>
-                <TextBlock Text="v1.2.2" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
+                <TextBlock x:Name="VersionText" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Bottom" Margin="7,0,0,2"/>
             </StackPanel>
 

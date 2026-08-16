@@ -12,6 +12,8 @@ using BrightnessControl.Views.Controls;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
 using Image = System.Windows.Controls.Image;
+using Path = System.Windows.Shapes.Path;
+using Orientation = System.Windows.Controls.Orientation;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
@@ -52,13 +54,16 @@ public partial class FlyoutWindow : Window
         _onSettingsChanged = onSettingsChanged;
 
         SiteText.Text = AppInfo.Site;
+        VersionText.Text = $"v{AppInfo.Version}";
 
         _profileManager.ActiveProfileChanged += OnActiveProfileChanged;
         _monitorService.BrightnessChanged += OnBrightnessChanged;
+        _monitorService.MonitorsChanged += OnMonitorsChanged;
         Closed += (_, _) =>
         {
             _profileManager.ActiveProfileChanged -= OnActiveProfileChanged;
             _monitorService.BrightnessChanged -= OnBrightnessChanged;
+            _monitorService.MonitorsChanged -= OnMonitorsChanged;
         };
         Loaded += (_, _) => { PositionNearTray(); AnimateIn(); ForceForeground(); };
         // Re-pin the bottom edge whenever content grows/shrinks (e.g. the Advanced/Contrast panel
@@ -97,6 +102,52 @@ public partial class FlyoutWindow : Window
 
         foreach (var monitor in monitors)
             MonitorsPanel.Children.Add(BuildMonitorCard(monitor));
+
+        // A switched-off display is off the Windows desktop, so it is not in Monitors at all — it
+        // needs its own row or there would be no way to bring it back from here.
+        foreach (var off in _monitorService.DetachedDisplays)
+            MonitorsPanel.Children.Add(BuildSwitchedOffCard(off));
+
+        NoMonitorsText.Visibility =
+            monitors.Count == 0 && _monitorService.DetachedDisplays.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private Border BuildSwitchedOffCard(Models.DetachedDisplay display)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var label = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        label.Children.Add(new TextBlock
+        {
+            Text = display.FriendlyName,
+            FontSize = 12,
+            Foreground = Brush("TextSecondaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        label.Children.Add(new TextBlock
+        {
+            Text = "off",
+            FontSize = 11,
+            Foreground = Brush("AccentTextBrush"),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+        });
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        var button = PowerButton($"Turn {display.FriendlyName} back on", poweredOn: false);
+        button.Click += async (_, _) =>
+        {
+            button.IsEnabled = false;
+            try { await _monitorService.SetPowerAsync(display.Id, on: true); }
+            finally { button.IsEnabled = true; }
+        };
+        Grid.SetColumn(button, 1);
+        row.Children.Add(button);
+
+        return Card(row, new Thickness(0, 0, 0, 8));
     }
 
     private Border BuildMasterCard(List<Models.MonitorInfo> monitors)
@@ -109,14 +160,19 @@ public partial class FlyoutWindow : Window
         _masterSlider = master;
         master.BrightnessCommitted += async (_, percent) =>
         {
+            bool persisted = false;
+            var generation = _monitorService.BeginIntent();
+
             foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
             {
-                _state.Config.IdleProfile.MonitorBrightness[monitor.Id] = percent;
-                await _monitorService.SetBrightnessPercentAsync(monitor.Id, percent);
+                await _monitorService.SetBrightnessPercentAsync(monitor.Id, percent, generation, verify: false);
+                persisted |= BrightnessAdjuster.Remember(_state.Config, monitor.Id, percent, _profileManager.IsGameRunning);
                 if (_monitorSliders.TryGetValue(monitor.Id, out var s))
                     s.Value = percent;
             }
-            ConfigStore.Save(_state.Config);
+
+            if (persisted)
+                ConfigStore.Save(_state.Config);
         };
         return Card(master, new Thickness(0, 0, 0, 8));
     }
@@ -132,20 +188,82 @@ public partial class FlyoutWindow : Window
             Value = monitor.CurrentPercent,
         };
         _monitorSliders[monitorId] = slider;
-        // The live slider doubles as the idle/default preset: what you set here is restored
-        // when a tracked game closes (ProfileManager applies Config.IdleProfile.MonitorBrightness).
+        // The live slider doubles as the everyday preset: what you set here is restored when a
+        // tracked game closes. Mid-game tweaks are deliberately not remembered — see BrightnessAdjuster.
         slider.BrightnessCommitted += async (_, percent) =>
         {
-            _state.Config.IdleProfile.MonitorBrightness[monitorId] = percent;
-            ConfigStore.Save(_state.Config);
+            if (BrightnessAdjuster.Remember(_state.Config, monitorId, percent, _profileManager.IsGameRunning))
+                ConfigStore.Save(_state.Config);
             await _monitorService.SetBrightnessPercentAsync(monitorId, percent);
         };
-        stack.Children.Add(slider);
+
+        // A monitor that can be switched off gets a power toggle beside its slider. The primary
+        // display never does — turning off the screen the flyout lives on is not a useful outcome.
+        if (monitor.SupportsPower)
+        {
+            var row = new Grid();
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+            Grid.SetColumn(slider, 0);
+            row.Children.Add(slider);
+
+            var power = BuildPowerButton(monitor);
+            Grid.SetColumn(power, 1);
+            row.Children.Add(power);
+
+            stack.Children.Add(row);
+        }
+        else
+        {
+            stack.Children.Add(slider);
+        }
 
         if (monitor.SupportsContrast)
             stack.Children.Add(BuildAdvancedPanel(monitor));
 
         return Card(stack, new Thickness(0, 0, 0, 8));
+    }
+
+    /// <summary>Per-monitor power toggle. Switching a screen off takes it off the Windows desktop,
+    /// so the GPU stops driving it and the panel powers down — the only approach that both sticks
+    /// and can be undone from software. Windows sitting on that screen move to a remaining one.</summary>
+    private Button BuildPowerButton(Models.MonitorInfo monitor)
+    {
+        var button = PowerButton($"Turn {monitor.FriendlyName} off", poweredOn: true);
+
+        button.Click += async (_, _) =>
+        {
+            button.IsEnabled = false;
+            try { await _monitorService.SetPowerAsync(monitor.Id, on: false); }
+            finally { button.IsEnabled = true; }
+        };
+
+        return button;
+    }
+
+    private Button PowerButton(string tooltip, bool poweredOn)
+    {
+        var glyph = new Path
+        {
+            Data = Geometry.Parse("M12 3 L12 11 M6.5 5.5 A6 6 0 1 0 17.5 5.5"),
+            Stroke = poweredOn ? Brush("TextSecondaryBrush") : Brush("AccentTextBrush"),
+            StrokeThickness = 1.6,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            Width = 16,
+            Height = 16,
+            Stretch = Stretch.Uniform,
+        };
+
+        return new Button
+        {
+            Style = (Style)FindResource("IconButton"),
+            Content = glyph,
+            ToolTip = tooltip,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(6, 0, -4, 0),
+        };
     }
 
     private UIElement BuildAdvancedPanel(Models.MonitorInfo monitor)
@@ -339,7 +457,7 @@ public partial class FlyoutWindow : Window
     private void PersistProfiles()
     {
         ConfigStore.Save(_state.Config);
-        _profileManager.UpdateConfig(_state.Config);
+        _profileManager.UpdateTrackedProcesses();
         BuildGameTiles();
     }
 
@@ -358,6 +476,10 @@ public partial class FlyoutWindow : Window
         // The active game's tile shows the accent ring; just refresh the tiles.
         Dispatcher.Invoke(BuildGameTiles);
     }
+
+    /// <summary>A display woke up, was plugged in, or went away while the panel was open — rebuild the
+    /// monitor list so it matches reality instead of showing sliders for handles that no longer exist.</summary>
+    private void OnMonitorsChanged() => Dispatcher.Invoke(BuildMonitors);
 
     /// <summary>Mirror an external brightness change (hotkey, tray scroll) onto the open sliders.
     /// Setting Value runs under the slider's suppress guard, so it won't re-commit a DDC write.</summary>

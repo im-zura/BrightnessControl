@@ -18,6 +18,7 @@ internal sealed class TrayScrollService : IDisposable
     private readonly NotifyIcon _notifyIcon;
     private readonly MonitorService _monitorService;
     private readonly Func<AppConfig> _config;
+    private readonly Func<bool> _gameRunning;
     private readonly Dispatcher _dispatcher;
 
     // Keep a reference so the delegate isn't garbage-collected while the hook is installed.
@@ -30,11 +31,13 @@ internal sealed class TrayScrollService : IDisposable
     private IntPtr _iconHwnd;
     private uint _iconId;
 
-    public TrayScrollService(NotifyIcon notifyIcon, MonitorService monitorService, Func<AppConfig> config)
+    public TrayScrollService(NotifyIcon notifyIcon, MonitorService monitorService, Func<AppConfig> config,
+        Func<bool> gameRunning)
     {
         _notifyIcon = notifyIcon;
         _monitorService = monitorService;
         _config = config;
+        _gameRunning = gameRunning;
         _dispatcher = Dispatcher.CurrentDispatcher;
     }
 
@@ -122,17 +125,8 @@ internal sealed class TrayScrollService : IDisposable
         }
     }
 
-    private async Task AdjustAllAsync(int delta)
-    {
-        var config = _config();
-        foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
-        {
-            var target = Math.Clamp(monitor.CurrentPercent + delta, 0, 100);
-            await _monitorService.SetBrightnessPercentAsync(monitor.Id, target);
-            config.IdleProfile.MonitorBrightness[monitor.Id] = target;
-        }
-        ConfigStore.Save(config);
-    }
+    private Task AdjustAllAsync(int delta) =>
+        BrightnessAdjuster.AdjustAllAsync(_monitorService, _config(), delta, _gameRunning());
 
     public void Dispose()
     {

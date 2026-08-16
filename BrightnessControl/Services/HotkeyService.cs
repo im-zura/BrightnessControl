@@ -16,14 +16,16 @@ internal sealed class HotkeyService : IDisposable
 
     private readonly MonitorService _monitorService;
     private readonly Func<AppConfig> _config;
+    private readonly Func<bool> _gameRunning;
     private HwndSource? _source;
     private bool _upRegistered;
     private bool _downRegistered;
 
-    public HotkeyService(MonitorService monitorService, Func<AppConfig> config)
+    public HotkeyService(MonitorService monitorService, Func<AppConfig> config, Func<bool> gameRunning)
     {
         _monitorService = monitorService;
         _config = config;
+        _gameRunning = gameRunning;
     }
 
     public void Initialize()
@@ -69,17 +71,8 @@ internal sealed class HotkeyService : IDisposable
         return IntPtr.Zero;
     }
 
-    private async Task AdjustAllAsync(int delta)
-    {
-        var config = _config();
-        foreach (var monitor in _monitorService.Monitors.Where(m => m.IsResponsive))
-        {
-            var target = Math.Clamp(monitor.CurrentPercent + delta, 0, 100);
-            await _monitorService.SetBrightnessPercentAsync(monitor.Id, target);
-            config.IdleProfile.MonitorBrightness[monitor.Id] = target;
-        }
-        ConfigStore.Save(config);
-    }
+    private Task AdjustAllAsync(int delta) =>
+        BrightnessAdjuster.AdjustAllAsync(_monitorService, _config(), delta, _gameRunning());
 
     public void Dispose()
     {

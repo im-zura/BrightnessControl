@@ -3,7 +3,7 @@
 Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
 profiles** that switch automatically when a game launches and revert when it closes.
 
-Built by **[zura](https://imzura.com)** · v1.2.2 · MIT licensed.
+Built by **[zura](https://imzura.com)** · v1.3.0 · MIT licensed.
 
 <p align="center">
   <img src="docs/flyout-v1.2.2.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
@@ -12,6 +12,12 @@ Built by **[zura](https://imzura.com)** · v1.2.2 · MIT licensed.
 ## Features
 
 - 🖥️ **External monitor brightness** over **DDC/CI** (HDMI / DisplayPort) — no laptop panel needed.
+- ⏻ **Turn a single screen off** *(v1.3)* — switch off the second display and keep working on the
+  main one, then bring it back from the panel or the tray. The main display is never offered, and
+  anything switched off is restored when the app exits.
+- 🔌 **Follows your displays** *(v1.3)* — a monitor that was off at launch, woke from sleep, or was
+  just plugged in is picked up automatically and gets its saved brightness. Monitors are remembered
+  by hardware identity, so settings never drift onto the wrong screen.
 - 🎮 **Per‑game profiles** — e.g. Forza Horizon at 50%, Red Dead Redemption 2 at 40%. Brightness
   ramps to the game's profile the moment it starts — **only on the monitor the game runs on**, leaving
   your other displays untouched — and drops back to your idle profile when it exits.
@@ -43,7 +49,7 @@ Built by **[zura](https://imzura.com)** · v1.2.2 · MIT licensed.
 
 ## Download & install
 
-Grab **`BrightnessControl-Setup-1.2.2.exe`** from the [Releases](../../releases) page and run it — the
+Grab **`BrightnessControl-Setup-1.3.0.exe`** from the [Releases](../../releases) page and run it — the
 installer is **self‑contained** (no .NET runtime required), adds a Start‑menu shortcut, and can create
 a desktop icon. Once installed, the app appears in your system tray — **left‑click** the icon to open
 the panel. Toggle **Startup** in the panel to launch it with Windows.
@@ -68,12 +74,32 @@ The `.exe` lands in `BrightnessControl/bin/Release/net8.0-windows/win-x64/publis
 
 ## How it works
 
-- Brightness is read/written through `Dxva2.dll` (DDC/CI) — see `Services/MonitorController.cs`.
+- Brightness and contrast are read/written through `Dxva2.dll` (DDC/CI) — see
+  `Services/MonitorController.cs`.
+- Turning a screen off deactivates its path in the Windows display topology via `SetDisplayConfig`,
+  the same mechanism Settings uses for "Show only on 1" — see `Services/DisplayAttacher.cs`. Two
+  more obvious routes were tried and don't work: DDC power (VCP `0xD6`) is either ignored, because
+  Windows keeps driving the output and the panel wakes straight back up, or in its "hard off" mode
+  kills the monitor's DDC circuit so only its physical button can wake it; and the legacy
+  `ChangeDisplaySettingsEx` detach is rejected outright by current drivers.
+- Monitors are keyed by their device-interface path (`Services/MonitorIdentity.cs`), not by
+  enumeration order, so saved brightness follows the physical display.
+- Display arrivals, wake-ups and power-state changes are watched in
+  `Services/DisplayChangeWatcher.cs`, which re-enumerates handles and re-applies the current profile.
 - Game start/stop is detected by lightweight process polling (no admin required) — see
   `Services/ProcessWatcherService.cs`.
 - Installed games come from parsing Steam `.acf` manifests and Epic `.item` manifests — see
   `Services/SteamLibraryScanner.cs` and `Services/EpicLibraryScanner.cs`.
-- Settings live in `%AppData%\Brightness Control\config.json`.
+- Settings live in `%AppData%\Brightness Control\config.json`, diagnostics in `log.txt` beside it.
+
+## Tests
+
+```powershell
+dotnet test
+```
+
+Hardware paths (DDC/CI, hot-plug, power-off) can't be covered automatically —
+see [docs/test-checklist.md](docs/test-checklist.md).
 
 ## License
 

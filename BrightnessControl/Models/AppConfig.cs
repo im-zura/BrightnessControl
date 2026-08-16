@@ -51,4 +51,8 @@ public sealed class AppConfig
     public int TrayScrollStep { get; set; } = 5;
     public List<MonitorMeta> Monitors { get; set; } = new();
     public List<GameProfile> GameProfiles { get; set; } = new();
+
+    /// <summary>Displays currently switched off, with the mode needed to restore them. Persisted so
+    /// a screen is never stranded off because the app closed while it was.</summary>
+    public List<DetachedDisplay> DetachedDisplays { get; set; } = new();
 }

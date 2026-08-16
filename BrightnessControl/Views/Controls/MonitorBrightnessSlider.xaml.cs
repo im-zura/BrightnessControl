@@ -63,7 +63,13 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
 
         NameText.Text = MonitorName;
         PercentText.Text = $"{Value}%";
+
+        // Seeding the slider is not a user action. Without the guard the initial assignment starts
+        // the debounce timer, and 150ms later — by which time the caller has attached its handler
+        // and set the real value — the control "commits" a brightness the user never touched.
+        _suppressEvents = true;
         Slider.Value = Value;
+        _suppressEvents = false;
 
         // Scroll the wheel anywhere over the row to nudge brightness (like the system volume slider).
         // Routing through Slider.Value reuses the drag path: PercentText, Value, and the debounced commit.
@@ -94,6 +100,10 @@ public partial class MonitorBrightnessSlider : System.Windows.Controls.UserContr
         if (d is MonitorBrightnessSlider control && !control._suppressEvents)
         {
             control._suppressEvents = true;
+            // A value pushed in from outside (a profile switch, a hotkey, another slider) replaces
+            // whatever the user was mid-way through; a commit still queued for the old value would
+            // write a stale brightness back.
+            control._debounceTimer.Stop();
             control.Slider.Value = (int)e.NewValue;
             control.PercentText.Text = $"{e.NewValue}%";
             control._suppressEvents = false;

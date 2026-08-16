@@ -16,10 +16,17 @@ internal static class GameMonitorLocator
     private const int MaxAttempts = 10;
     private static readonly TimeSpan RetryDelay = TimeSpan.FromMilliseconds(300);
 
-    public static async Task<string?> ResolveMonitorIdAsync(Process process, IReadOnlyList<MonitorInfo> monitors)
+    /// <param name="cancellation">Aborts the retry loop when the result is already obsolete — the
+    /// game exiting while we are still waiting for its window is exactly how a stale game-brightness
+    /// write used to land after the idle profile had been restored.</param>
+    public static async Task<string?> ResolveMonitorIdAsync(
+        Process process, IReadOnlyList<MonitorInfo> monitors, CancellationToken cancellation = default)
     {
         for (int attempt = 0; attempt < MaxAttempts; attempt++)
         {
+            if (cancellation.IsCancellationRequested)
+                return null;
+
             var hwnd = TryGetWindow(process);
             if (hwnd != IntPtr.Zero)
             {
@@ -29,7 +36,8 @@ internal static class GameMonitorLocator
             }
 
             // The game's window often doesn't exist yet at the instant the process starts; retry briefly.
-            await Task.Delay(RetryDelay);
+            try { await Task.Delay(RetryDelay, cancellation); }
+            catch (OperationCanceledException) { return null; }
         }
 
         return null;

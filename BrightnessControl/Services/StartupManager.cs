@@ -15,6 +15,19 @@ internal static class StartupManager
         return key?.GetValue(ValueName) is string;
     }
 
+    /// <summary>The command line currently stored in the Run key, or null when there is none.</summary>
+    private static string? RegisteredCommand()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: false);
+        return key?.GetValue(ValueName) as string;
+    }
+
+    private static string? CurrentCommand()
+    {
+        var exePath = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
+        return exePath is null ? null : $"\"{exePath}\"";
+    }
+
     public static void SetEnabled(bool enabled)
     {
         using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true)
@@ -25,9 +38,9 @@ internal static class StartupManager
 
         if (enabled)
         {
-            var exePath = Environment.ProcessPath ?? System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-            if (exePath != null)
-                key.SetValue(ValueName, $"\"{exePath}\"");
+            var command = CurrentCommand();
+            if (command != null)
+                key.SetValue(ValueName, command);
         }
         else
         {
@@ -35,11 +48,25 @@ internal static class StartupManager
         }
     }
 
-    /// <summary>Keeps the registry in sync with the config value, e.g. after a manual reinstall
-    /// where the config says enabled but the registry key is missing.</summary>
+    /// <summary>Keeps the registry in sync with the config value — including after the app moves
+    /// (installed over a build run from a different folder), where a key that merely exists would
+    /// still be launching the old executable at every login.</summary>
     public static void Reconcile(bool shouldBeEnabled)
     {
-        if (shouldBeEnabled != IsRegistered())
-            SetEnabled(shouldBeEnabled);
+        var registered = RegisteredCommand();
+
+        if (!shouldBeEnabled)
+        {
+            if (registered != null)
+                SetEnabled(false);
+            return;
+        }
+
+        var current = CurrentCommand();
+        if (registered == null || (current != null && !string.Equals(registered, current, StringComparison.OrdinalIgnoreCase)))
+        {
+            Log.Info($"startup entry updated: {registered ?? "(none)"} → {current}");
+            SetEnabled(true);
+        }
     }
 }

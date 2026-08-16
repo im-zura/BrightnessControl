@@ -29,6 +29,12 @@ internal sealed class TrayIconManager : IDisposable
         openItem.Click += (_, _) => ShowFlyout();
         contextMenu.Items.Add(openItem);
 
+        // Always reachable, even when the flyout can't be read because the screen it would open on
+        // is the one that was switched off.
+        var wakeItem = new System.Windows.Forms.ToolStripMenuItem("Turn all screens on");
+        wakeItem.Click += (_, _) => _ = _monitorService.PowerOnAllAsync();
+        contextMenu.Items.Add(wakeItem);
+
         contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
         var exitItem = new System.Windows.Forms.ToolStripMenuItem("Exit");
@@ -54,7 +60,8 @@ internal sealed class TrayIconManager : IDisposable
 
         // Mouse-wheel-over-tray-icon brightness. Needs the NotifyIcon's window to exist, which it does
         // now that Visible=true was set above.
-        _trayScroll = new TrayScrollService(_notifyIcon, monitorService, () => state.Config);
+        _trayScroll = new TrayScrollService(_notifyIcon, monitorService, () => state.Config,
+            () => profileManager.IsGameRunning);
         _trayScroll.Initialize();
     }
 
