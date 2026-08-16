@@ -31,8 +31,11 @@ panel blinks and wakes back up while Windows keeps driving the output); value `5
 the monitor's DDC circuit, so only its physical button brings it back. The app uses the Windows
 display topology instead.
 
-**Still needs your hands** (nothing can fake a monitor's own power button): everything in
-section 1, plus 2.3–2.6 and 3.4–3.7, 4.1–4.8.
+Zura confirmed by hand on 2026-08-17: switching the monitor off and on **at its own physical
+button** while the app is running (section 1), and switching it off and on **from the app**
+(3.2/3.3) — both work.
+
+**Still open:** 2.3–2.6, 3.4–3.7, 4.1–4.8, and the cable/sleep/resume steps in section 1.
 
 ---
 
