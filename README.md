@@ -1,12 +1,13 @@
 # Brightness Control — IMZURA
 
 Control your **external monitors' brightness** right from Windows 11 — with **per‑game brightness
-profiles** that switch automatically when a game launches and revert when it closes.
+profiles** that switch automatically when a game launches and revert when it closes, and a one‑click
+way to **switch a screen off** while you keep working on the other.
 
 Built by **[zura](https://imzura.com)** · v1.3.0 · MIT licensed.
 
 <p align="center">
-  <img src="docs/flyout-v1.2.2.png" alt="Brightness Control flyout — monitor sliders and per-game profiles" width="360">
+  <img src="docs/flyout-v1.3.0.png" alt="Brightness Control flyout — monitor sliders, a per-monitor power button, and per-game profiles" width="360">
 </p>
 
 ## Features
@@ -18,13 +19,14 @@ Built by **[zura](https://imzura.com)** · v1.3.0 · MIT licensed.
 - 🔌 **Follows your displays** *(v1.3)* — a monitor that was off at launch, woke from sleep, or was
   just plugged in is picked up automatically and gets its saved brightness. Monitors are remembered
   by hardware identity, so settings never drift onto the wrong screen.
-- 🎮 **Per‑game profiles** — e.g. Forza Horizon at 50%, Red Dead Redemption 2 at 40%. Brightness
+- 🎮 **Per‑game profiles** — e.g. Red Dead Redemption 2 at 50%, War Thunder at 40%. Brightness
   ramps to the game's profile the moment it starts — **only on the monitor the game runs on**, leaving
-  your other displays untouched — and drops back to your idle profile when it exits.
+  your other displays untouched — and goes back to your everyday level when it exits.
 - 🔎 **Auto‑detects installed games** from your **Steam** and **Epic** libraries — no need to have the
   game running to add it. (Falls back to a running‑process picker for other launchers.)
 - 🌙 **Remembers your everyday level** — the brightness you set from the panel is restored
   automatically whenever no tracked game is running, so it's back to normal the moment a game closes.
+  Tweaks made **while** a game is running are treated as part of that game, not as your new normal.
 - 🖥️ **Clear multi‑monitor labels** — each display is named by its **Windows display number**
   (Display 1 · main, Display 2…), matching Settings → Display.
 - 🎚️ **All‑monitors master slider** — move every display together with one control.
@@ -43,7 +45,7 @@ Built by **[zura](https://imzura.com)** · v1.3.0 · MIT licensed.
 
 - Windows 11 (also works on Windows 10 21H2+).
 - One or more **external** monitors with **DDC/CI enabled** in their on‑screen menu (most monitors;
-  it's sometimes off by default).
+  it's sometimes off by default). Brightness and contrast need it; switching a screen off does not.
 - [.NET 8 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/8.0) to run a framework
   build, or use the self‑contained release (below) which needs nothing installed.
 
@@ -57,8 +59,8 @@ the panel. Toggle **Startup** in the panel to launch it with Windows.
 ## Build from source
 
 ```powershell
-git clone <this-repo>
-cd "Brightness Control"
+git clone https://github.com/im-zura/BrightnessControl.git
+cd BrightnessControl
 dotnet build -c Release
 dotnet run --project BrightnessControl
 ```
@@ -98,8 +100,16 @@ The `.exe` lands in `BrightnessControl/bin/Release/net8.0-windows/win-x64/publis
 dotnet test
 ```
 
-Hardware paths (DDC/CI, hot-plug, power-off) can't be covered automatically —
-see [docs/test-checklist.md](docs/test-checklist.md).
+67 unit tests, no hardware needed. A further 4 talk to the monitors actually attached — they change
+what you're looking at, so they're skipped unless you opt in:
+
+```powershell
+$env:BC_HARDWARE_TESTS="1"
+dotnet test --filter Category=Hardware -l "console;verbosity=detailed"
+```
+
+What neither can reach — switching a monitor off at its own button, unplugging a cable, sleep and
+resume — is in [docs/test-checklist.md](docs/test-checklist.md).
 
 ## License
 
